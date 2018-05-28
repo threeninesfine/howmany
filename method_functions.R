@@ -1,29 +1,16 @@
 ## @knitr methods
+## author             = Michael Flanagin
+## date started       = 2018 May 16
+## date last modified = 2018 May 28
+## advisor            = Amalia Magaret
+## objective          = Methods to allocate treatment, simulate outcomes
+##                        ExtendedMethod to estimate regression model parameters
+##                        ExtendedMethod to create rerandomized uncertainty estimates
 
 create_method_objects <- FALSE #' [ create method objects on sourcing? ]
 run_analysis <- FALSE #' [ evaluate methods on simulation on sourcing? ]
 use_extended_method_approach <- FALSE
 use_method_extension_approach <- FALSE
-# --------------------------------------------------------------------------- #
-#' ------------------------ [utility functions] ----------------------------- #
-# --------------------------------------------------------------------------- #
-
-#' [make_ci()]
-#' [use:] makes a Wald-type 1-alpha% confidence interval, accepts both scalar/vector input.
-make_ci <- function( est, se, alpha ){
-  .make_ci <- function( est, se, alpha ){ return( est + c(-1, 1) * qnorm(1 - alpha/2) * se )}
-  .make_cis <- Vectorize( .make_ci, vectorize.args=c("est", "se"));
-  nterms <- length( est )
-  if( nterms > 1 ){
-    out <- t(.make_cis( est = est, se = se, alpha = alpha ));
-    colnames( out ) <- c("cilower", "ciupper");
-  }else{
-    out <- .make_ci( est = est, se = se, alpha = alpha );
-    names( out ) <- c("cilower", "ciupper");
-  }
-  return( out )
-} # end make_ci()
-
 
 # --------------------------------------------------------------------------- #
 #' --------- [ allocation methods that also simulate outcomes ] ------------- #
@@ -219,8 +206,8 @@ compute_regression_estimates <- function( model, draw, out, adjusted ){
   return( fitted_model_ests ) 
 }# returns (est, se, t, p)
 
-#' [function 6: estimate_regression_parameters_extended_method() returns (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
-estimate_regression_parameters_extended_method <- function( base_method, adjusted = NULL, output_list = FALSE ){
+#' [function 6: estimate_regression_parameters() returns (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
+estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL, return_extended_method = TRUE ){
   
   #' [ use: pass 'allocation_method' to base_method when calling fn() ]
   #' [ note: requires running base_method on simulation in order to work! ]
@@ -243,88 +230,45 @@ estimate_regression_parameters_extended_method <- function( base_method, adjuste
   
   adjusted <- ifelse(is.null( adjusted ), TRUE, adjusted ); #' [default is adjusted = TRUE]
   
-  new_extended_method(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
-                      label = paste0("estimate regression model treatment effect, ",
-                                     ifelse( adjusted, "adjusted ", "unadjusted "),
-                                     "for prognostic factors"),
-                      base_method = base_method,
-                      extended_method = function( model, draw, out, base_method ){
-                        fitted_model_estimates <- compute_regression_estimates( model = model,
-                                                                                draw = draw,
-                                                                                out = out,
-                                                                                adjusted = adjusted )
-                        wald_type_confints <- make_ci( est = fitted_model_estimates["est"],
-                                                       se = fitted_model_estimates["se"],
-                                                       alpha = model$alpha );
-                        if( output_list ){
-                          return(list( est = fitted_model_estimates["est"],
-                                       se = fitted_model_estimates["se"],
-                                       t = fitted_model_estimates["t"],
-                                       p = fitted_model_estimates["p"],
-                                       adjusted = adjusted,
-                                       rerandomized = FALSE,
-                                       cilower = wald_type_confints["cilower"],
-                                       ciupper = wald_type_confints["ciupper"]))
-                        }else{
-                          return(data.frame( est = fitted_model_estimates["est"],
-                                             se = fitted_model_estimates["se"],
-                                             t = fitted_model_estimates["t"],
-                                             p = fitted_model_estimates["p"],
-                                             adjusted = adjusted,
-                                             rerandomized = FALSE,
-                                             cilower = wald_type_confints["cilower"],
-                                             ciupper = wald_type_confints["ciupper"]))
-                        }
-                      })
+  if( return_extended_method & !is.null( base_method )){ #' [ if passed base_method, return ExtendedMethod object ]
+    return(new_extended_method(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
+                               label = paste0("estimate regression model treatment effect, ",
+                                              ifelse( adjusted, "adjusted ", "unadjusted "),
+                                              "for prognostic factors"),
+                               base_method = base_method,
+                               extended_method = function( model, draw, out, base_method ){
+                                 fitted_model <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
+                                 wald_type_confints <- make_ci( est = fitted_model["est"], se = fitted_model["se"], alpha = model$alpha );
+                                 return(list( est = fitted_model["est"],
+                                              se = fitted_model["se"],
+                                              t = fitted_model["t"],
+                                              p = fitted_model["p"],
+                                              adjusted = adjusted,
+                                              rerandomized = FALSE,
+                                              cilower = wald_type_confints["cilower"],
+                                              ciupper = wald_type_confints["ciupper"]))}))
+  }else{
+    return(new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
+                                label = paste0("estimate regression model treatment effect, ",
+                                               ifelse( adjusted, "adjusted ", "unadjusted "),
+                                               "for prognostic factors"),
+                                method_extension = function( model, draw, out, base_method ){
+                                  fitted_model <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
+                                  wald_type_confints <- make_ci( est = fitted_model["est"], se = fitted_model["se"], alpha = model$alpha );
+                                  return(list( est = fitted_model["est"],
+                                               se = fitted_model["se"],
+                                               t = fitted_model["t"],
+                                               p = fitted_model["p"],
+                                               adjusted = adjusted,
+                                               rerandomized = FALSE,
+                                               cilower = wald_type_confints["cilower"],
+                                               ciupper = wald_type_confints["ciupper"]))}))
+  }
 }
 
-#' [function 7: estimate_regression_parameters_method_extension() 
-estimate_regression_parameters_method_extension <- function( base_method = NULL, adjusted = NULL ){
-  #' [ use: add directly to an allocation method returning allocs (Z) and outcomes (Y) ]
-  #' [ example: run_method('allocation_method' + 'est_regression_params') ]
-  #' [ returns: (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
-  
-  #' [make_ci() makes a Wald-type 1-alpha% confidence interval, accepts both scalar/vector input. ]
-  make_ci <- function( est, se, alpha ){
-    .make_ci <- function( est, se, alpha ){ return( est + c(-1, 1) * qnorm(1 - alpha/2) * se )}
-    .make_cis <- Vectorize( .make_ci, vectorize.args=c("est", "se"));
-    nterms <- length( est )
-    if( nterms > 1 ){
-      out <- t(.make_cis( est = est, se = se, alpha = alpha ));
-      colnames( out ) <- c("cilower", "ciupper");
-    }else{
-      out <- .make_ci( est = est, se = se, alpha = alpha );
-      names( out ) <- c("cilower", "ciupper");
-    }
-    return( out )
-  } # end make_ci()
-  
-  adjusted <- ifelse(is.null( adjusted ), TRUE, adjusted ); #' [ default is adjusted = TRUE]
-  new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
-                       label = paste0("estimate regression model treatment effect, ",
-                                      ifelse( adjusted, "adjusted ", "unadjusted "),
-                                      "for prognostic factors"),
-                       method_extension = function( model, draw, out, base_method ){
-                         fitted_model_estimates <- compute_regression_estimates( model = model,
-                                                                                 draw = draw,
-                                                                                 out = out,
-                                                                                 adjusted = adjusted )
-                         wald_type_confints <- make_ci( est = fitted_model_estimates["est"],
-                                                        se = fitted_model_estimates["se"],
-                                                        alpha = model$alpha );
-                         return(list( est = fitted_model_estimates["est"],
-                                      se = fitted_model_estimates["se"],
-                                      t = fitted_model_estimates["t"],
-                                      p = fitted_model_estimates["p"],
-                                      adjusted = adjusted,
-                                      rerandomized = FALSE,
-                                      cilower = wald_type_confints["cilower"],
-                                      ciupper = wald_type_confints["ciupper"]))
-                         })
-}
 
 #' [function 8: rerandomization_error_estimates_method_extension() 
-rerandomization_error_estimates_method_extension <- function( base_method = NULL, adjusted = NULL, num_rerandomizations = NULL ){
+rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, num_rerandomizations = NULL, return_extended_method = TRUE ){
   #' [ use: add directly to an allocation method returning allocs (Z) and outcomes (Y) ]
   #' [ example: run_method('allocation_method' + 'rerand_err_ests') ]
   #' [ returns: (est, se_rerand, t, p_rerand, adjusted, rerandomized = TRUE, cilower_rerand, ciupper_rerand)]
@@ -348,37 +292,117 @@ rerandomization_error_estimates_method_extension <- function( base_method = NULL
   if(is.null( num_rerandomizations )) num_rerandomizations = 500; 
   if(is.null( adjusted )) adjusted = TRUE; #' [ TODO (lexical scope): is 'adjusted' defined when EM is added to Method? ]
   
-  new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests-RERANDOMIZED-error-ests"),
-                       label = paste0("estimate regression model treatment effect, ",
-                                      ifelse( adjusted, "adjusted ", "unadjusted "),
-                                      "for prognostic factors, RERANDOMIZED error estimates"),
-                       method_extension = function( model, draw, out, base_method ){
-                         #' [ step 1: estimate regression parameters from observed data (est, se, t, p)]
-                         model_ests_observed <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
-                         
-                         #' [ step 2: estimate regression parameters from #('num_rerandomizations') re-randomized allocations  ]
-                         model_ests_rerand <- t(sapply( 1:num_rerandomizations, function( rerand_i ){
-                           #' [ copy output and replace observed allocs (Z) with rerandomized allocs ]
-                           out_rerand_i <- out; 
-                           out_rerand_i$Z <- base_method@method( model = model, draw = draw, simulate_outcome = FALSE )$Z
-                           return( compute_regression_estimates( model = model, draw = draw, out = out_rerand_i, adjusted = adjusted ))}))
+  if( return_extended_method & !is.null( base_method )){
+    return(new_extended_method(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests-RERANDOMIZED-error-ests"),
+                         label = paste0("estimate regression model treatment effect, ",
+                                        ifelse( adjusted, "adjusted ", "unadjusted "),
+                                        "for prognostic factors, RERANDOMIZED error estimates"),
+                         base_method = base_method,
+                         extended_method = function( model, draw, out, base_method ){
+                           #' [ step 1: estimate regression parameters from observed data (est, se, t, p)]
+                           model_ests_observed <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
                            
-                         #' [ step 3: compute significance measures from rerandomized output ]
-                         se_rerand <- sd( model_ests_rerand[,"est"], na.rm = TRUE)
-                         #' [ TODO: (p-value Q): how many re-randomized allocations have a more extreme outcome than what was observed? ]
-                         p_rerand <- mean(abs( model_ests_rerand[,"t"] ) >= abs( model_ests_observed["t"] )) #' [ by (a) |t_rerand| >= |t_obs| vs. (b) p_rerand <  p_obs ]
-                         ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model$alpha/2, 1 - model$alpha/2 ))
-                         return(list( est = model_ests_observed["est"],
-                                      se = se_rerand,
-                                      t = model_ests_observed["t"],
-                                      p = p_rerand,
-                                      adjusted = adjusted,
-                                      rerandomized = TRUE,
-                                      cilower = ci_rerand[1],
-                                      ciupper = ci_rerand[2],
-                                      num_rerandomizations = num_rerandomizations ))
-                       })
+                           #' [ step 2: estimate regression parameters from #('num_rerandomizations') re-randomized allocations  ]
+                           model_ests_rerand <- t(sapply( 1:num_rerandomizations, function( rerand_i ){
+                             #' [ copy output and replace observed allocs (Z) with rerandomized allocs ]
+                             out_rerand_i <- out; 
+                             out_rerand_i$Z <- base_method@method( model = model, draw = draw, simulate_outcome = FALSE )$Z
+                             return( compute_regression_estimates( model = model, draw = draw, out = out_rerand_i, adjusted = adjusted ))}))
+                           
+                           #' [ step 3: compute significance measures from rerandomized output ]
+                           se_rerand <- sd( model_ests_rerand[,"est"], na.rm = TRUE)
+                           #' [ TODO: (p-value Q): how many re-randomized allocations have a more extreme outcome than what was observed? ]
+                           p_rerand <- mean(abs( model_ests_rerand[,"t"] ) >= abs( model_ests_observed["t"] )) #' [ by (a) |t_rerand| >= |t_obs| vs. (b) p_rerand <  p_obs ]
+                           ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model$alpha/2, 1 - model$alpha/2 ))
+                           return(list( est = model_ests_observed["est"],
+                                        se = se_rerand,
+                                        t = model_ests_observed["t"],
+                                        p = p_rerand,
+                                        adjusted = adjusted,
+                                        rerandomized = TRUE,
+                                        cilower = ci_rerand[1],
+                                        ciupper = ci_rerand[2],
+                                        num_rerandomizations = num_rerandomizations ))}))
+  }else{
+    return(new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests-RERANDOMIZED-error-ests"),
+                         label = paste0("estimate regression model treatment effect, ",
+                                        ifelse( adjusted, "adjusted ", "unadjusted "),
+                                        "for prognostic factors, RERANDOMIZED error estimates"),
+                         method_extension = function( model, draw, out, base_method ){
+                           #' [ step 1: estimate regression parameters from observed data (est, se, t, p)]
+                           model_ests_observed <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
+                           
+                           #' [ step 2: estimate regression parameters from #('num_rerandomizations') re-randomized allocations  ]
+                           model_ests_rerand <- t(sapply( 1:num_rerandomizations, function( rerand_i ){
+                             #' [ copy output and replace observed allocs (Z) with rerandomized allocs ]
+                             out_rerand_i <- out; 
+                             out_rerand_i$Z <- base_method@method( model = model, draw = draw, simulate_outcome = FALSE )$Z
+                             return( compute_regression_estimates( model = model, draw = draw, out = out_rerand_i, adjusted = adjusted ))}))
+                           
+                           #' [ step 3: compute significance measures from rerandomized output ]
+                           se_rerand <- sd( model_ests_rerand[,"est"], na.rm = TRUE)
+                           #' [ TODO: (p-value Q): how many re-randomized allocations have a more extreme outcome than what was observed? ]
+                           p_rerand <- mean(abs( model_ests_rerand[,"t"] ) >= abs( model_ests_observed["t"] )) #' [ by (a) |t_rerand| >= |t_obs| vs. (b) p_rerand <  p_obs ]
+                           ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model$alpha/2, 1 - model$alpha/2 ))
+                           return(list( est = model_ests_observed["est"],
+                                        se = se_rerand,
+                                        t = model_ests_observed["t"],
+                                        p = p_rerand,
+                                        adjusted = adjusted,
+                                        rerandomized = TRUE,
+                                        cilower = ci_rerand[1],
+                                        ciupper = ci_rerand[2],
+                                        num_rerandomizations = num_rerandomizations ))}))
+  }
 }
 
 
+
+
+
+#' [function 7: estimate_regression_parameters_method_extension() 
+estimate_regression_parameters_method_extension <- function( base_method = NULL, adjusted = NULL ){
+  #' [ use: add directly to an allocation method returning allocs (Z) and outcomes (Y) ]
+  #' [ example: run_method('allocation_method' + 'est_regression_params') ]
+  #' [ returns: (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
+  
+  #' [make_ci() makes a Wald-type 1-alpha% confidence interval, accepts both scalar/vector input. ]
+  make_ci <- function( est, se, alpha ){
+    .make_ci <- function( est, se, alpha ){ return( est + c(-1, 1) * qnorm(1 - alpha/2) * se )}
+    .make_cis <- Vectorize( .make_ci, vectorize.args=c("est", "se"));
+    nterms <- length( est )
+    if( nterms > 1 ){
+      out <- t(.make_cis( est = est, se = se, alpha = alpha ));
+      colnames( out ) <- c("cilower", "ciupper");
+    }else{
+      out <- .make_ci( est = est, se = se, alpha = alpha );
+      names( out ) <- c("cilower", "ciupper");
+    }
+    return( out )
+  } # end make_ci()
+  
+  adjusted <- ifelse(is.null( adjusted ), TRUE, adjusted ); #' [ default is adjusted = TRUE]
+  
+  new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
+                       label = paste0("estimate regression model treatment effect, ",
+                                      ifelse( adjusted, "adjusted ", "unadjusted "),
+                                      "for prognostic factors"),
+                       method_extension = function( model, draw, out, base_method ){
+                         fitted_model <- compute_regression_estimates( model = model,
+                                                                       draw = draw,
+                                                                       out = out,
+                                                                       adjusted = adjusted )
+                         wald_type_confints <- make_ci( est = fitted_model["est"],
+                                                        se = fitted_model["se"],
+                                                        alpha = model$alpha );
+                         return(list( est = fitted_model["est"],
+                                      se = fitted_model["se"],
+                                      t = fitted_model["t"],
+                                      p = fitted_model["p"],
+                                      adjusted = adjusted,
+                                      rerandomized = FALSE,
+                                      cilower = wald_type_confints["cilower"],
+                                      ciupper = wald_type_confints["ciupper"]))
+                       })
+}
 

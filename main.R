@@ -55,14 +55,6 @@ get_rerandomized_errors_adjusted_tx_effect <- lapply( allocation_methods_list, f
 get_rerandomized_errors_unadjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
   rerandomized_error_estimates( base_method = .alloc_method, adjusted = FALSE, num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
 
-#' [ Step 2a (DEPRECATED): define MethodExtensions to estimate tx effects ]
-est_tx_effect_adjusted <- estimate_regression_parameters( adjusted = TRUE, return_extended_method = FALSE ) #' [ Method (a.1) ]
-est_tx_effect_unadjusted <- estimate_regression_parameters( adjusted = FALSE, return_extended_method = FALSE ) #' [ Method (a.2) ]
-
-#' [ Step 3a (DEPRECATED): define MethodExtensions to compute rerandomized std. error ests ]
-rerand_err_ests_adjusted <- rerandomization_error_estimates_method_extension( adjusted = TRUE, num_rerandomizations = num_reallocations );
-rerand_err_ests_unadjusted <- rerandomization_error_estimates_method_extension( adjusted = FALSE, num_rerandomizations = num_reallocations );
-
 # --------------------------------------------------------------------------- #
 #' ------------ [ III. Simulation design & evaluation ] --------------------- #
 # --------------------------------------------------------------------------- #
