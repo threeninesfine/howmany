@@ -15,9 +15,9 @@ simulation_name <- "alloc-model-AWS"
 results_directory <- "./results/"
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H:%M") #' [ timestamp ]
 num_cores_parallel <- max(1, parallel::detectCores() - 1); #' [ for parallel computing ]
-num_simulations <- 10; #' [ simulaions per design matrix (PER CORE!)]
+num_simulations <- 10000; #' [ simulations per design matrix (all cores!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
-num_reallocations <- 20; #' [ rerandomized allocations per simulated trial ]
+num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
 generate_model <- TRUE #' [ Phase 1: define all models, simulate draws ]
@@ -26,7 +26,6 @@ estimate_effects <- FALSE #' [ Phase 3: estimate tx effects (adjusted, unadjuste
 estimate_rerandomized_errors <- TRUE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
 unadjusted_analyses <- FALSE #' [ (Phases 3,4) for now, ignore unadjusted analyses (TODO: complete!) ]
 analyze_results <- FALSE #' [ Phase 5: analyze results (tables and figures) ]
-
 
 source("model_functions.R") #' [ step 1: define your Model, its parameters, and simulation function (produces 'draws') ]
 source("method_functions.R") #' [ step 2: define your Methods, data analysis approaches (produces 'out') ]
@@ -51,9 +50,11 @@ get_unadjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_me
 
 #' [ Step 3b: define ExtendedMethods to compute rerandomized std. error ests ]
 get_rerandomized_errors_adjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
-  rerandomized_error_estimates( base_method = .alloc_method, adjusted = TRUE, num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
+  rerandomized_error_estimates( base_method = .alloc_method, adjusted = TRUE, 
+                                num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
 get_rerandomized_errors_unadjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
-  rerandomized_error_estimates( base_method = .alloc_method, adjusted = FALSE, num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
+  rerandomized_error_estimates( base_method = .alloc_method, adjusted = FALSE, 
+                                num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
 
 # --------------------------------------------------------------------------- #
 #' ------------ [ III. Simulation design & evaluation ] --------------------- #
@@ -159,49 +160,11 @@ if( estimate_rerandomized_errors ){
   }
 }
   
-
 # --------------------------------------------------------------------------- #
 #' --------- [ Phase 5: analyze results (tables and figures) ] -------------- #
 # --------------------------------------------------------------------------- #
 if( analyze_results ){
-  #' -------------------------------------------------------------------------- #
-  #' ---------------- [ plotting metrics by vars ] ---------------------------- #
-  #' -------------------------------------------------------------------------- #
-  simulation %>%
-    subset_simulation() %>%
-    plot_eval_by(sim = simulation, 
-                 metric_name = "coverage", 
-                 varying = "trial_size",
-                 main = "Coverage probability by trial size")
-  
-  #' -------------------------------------------------------------------------- #
-  #' ------------------ [ adding more replicates ] ---------------------------- #
-  #' -------------------------------------------------------------------------- #
-  
-  sim2 <- simulation %>% subset_simulation(methods = "") %>%
-    rename("Allocation-model-rerandomized") %>%
-    relabel("Effect of rerandomization on inference") %>%
-    run_method(methods = estimate_treatment_effects_model_based_uncertainty + rerandomize)
-  
-  #' -------------------------------------------------------------------------- #
-  #' ------------------- [ viewing data and results ] ------------------------- #
-  #' -------------------------------------------------------------------------- #
-  #' [ accessing 'draws' ]
-  d <- draws( simulation )
-  #' [ then we could get the simulated draws as follows:
-  d@draws$r1.1 
-  
-  #' [ accessing 'out' ]
-  o <- out( simulation )
-  #' [ then we could get the computed output as follows: ]
-  
-  .draw_object <- draws( simulation )[[1]]
-  .out_object <- output( simulation )[[1]]
-  
-  .model <- model( simulation )[[1]]
-  .draw <- draws( simulation )[[ 1 ]]@draws[[1]]
-  .out <- output( simulation )[[1]]@out[[1]]
-  base_method <- SR
+  #' [ todo: mock tables and figures here! ]
 }
 
 
