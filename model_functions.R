@@ -20,9 +20,9 @@ make_trial_allocation_model <- function(trial_size,
 
   #' [effect sizes] Convert effect size into log(OR) or mean difference.
   if( outcome_type == "binary" ){
-    bX <- log( prognostic_factor_effect_size )
-    bT <- log( entry_time_effect_size )
-    bZ <- log( treatment_assignment_effect_size )
+    bX <- log(as.numeric( prognostic_factor_effect_size ))
+    bT <- log(as.numeric( entry_time_effect_size ))
+    bZ <- log(as.numeric( treatment_assignment_effect_size ))
   }else{
     bX <- prognostic_factor_effect_size - 1
     bT <- entry_time_effect_size - 1
@@ -38,7 +38,7 @@ make_trial_allocation_model <- function(trial_size,
   
   new_model(name = sprintf(paste0("trial_size-%s-outcome-%s-predictor-%s-",
                                   "num_predictors-%.0f-outcome-prev-%.2f-predictor_prev-%.2f-",
-                                  "bX-%.2f-bT-%.2f-bZ-%.2f"),
+                                  "bX-%.1f-bT-%.1f-bZ-%.1f"),
                            trial_size, outcome_type, prognostic_factor_type, prognostic_factor_number,
                            outcome_marginal_prevalence, prognostic_factor_prevalence, bX[1], bT, bZ),
             label = sprintf(paste0("Allocation model - trial_size-%s-outcome-%s-predictor-%s-",

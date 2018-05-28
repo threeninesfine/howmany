@@ -12,12 +12,12 @@
 library("simulator") # this file was created under simulator version 0.2.0
 
 #' [ step 0: set output directory for simulation results ]
-results_directory <- "./simulation_results/"
+results_directory <- "./results/"
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H:%M") #' [ timestamp ]
-num_cores_parallel <- parallel::detectCores() - 1; #' [ for parallel computing ]
-num_simulations <- 10000; #' [ simulaions per design matrix (PER CORE!)]
+num_cores_parallel <- max(1, parallel::detectCores() - 1); #' [ for parallel computing ]
+num_simulations <- 10; #' [ simulaions per design matrix (PER CORE!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
-num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
+num_reallocations <- 20; #' [ rerandomized allocations per simulated trial ]
 
 #' [ Setting parameters ]
 run_scratch_code <- FALSE #' [ evaluate scratch code (for debugging)? ]
@@ -48,7 +48,7 @@ rerand_err_ests_unadj <- rerandomization_error_estimates_method_extension( adjus
 #' ------------ [ III. Simulation design & evaluation ] --------------------- #
 # --------------------------------------------------------------------------- #
 
-simulation <- new_simulation(name = "alloc-model-2018-05-25-test2",
+simulation <- new_simulation(name = "alloc-model-28-May",
                              label = "Randomization-allocation-methods-model",
                              dir = results_directory) %>%
   generate_model(make_trial_allocation_model,
@@ -58,9 +58,9 @@ simulation <- new_simulation(name = "alloc-model-2018-05-25-test2",
                  prognostic_factor_type = c( "binary" ), # c("continuous", "binary"),
                  prognostic_factor_prevalence = c( 0.50 ), # c( 0.25, 0.50 ),
                  prognostic_factor_number = c( 2 ), # c( 1, 2, 3 ),
-                 prognostic_factor_effect_size = c(1), # c( 1, 1.1, 3 ),
+                 prognostic_factor_effect_size = list( 1, 1.1, 3 ),
                  treatment_assignment_effect_size = list(1, 1.1, 3),
-                 entry_time_effect_size = c(1), # c( 1, 3 ),
+                 entry_time_effect_size = list( 1, 3 ),
                  allocation_ratio = c( 0.50 ),
                  num_rerandomizations = c( 500 ),
 #                 allocation_biasing_probability = c( 1.0 ),
@@ -68,9 +68,9 @@ simulation <- new_simulation(name = "alloc-model-2018-05-25-test2",
                  vary_along = c("trial_size",
                    #                   "prognostic_factor_prevalence",
                    #                   "prognostic_factor_number",
-                   #                   "prognostic_factor_effect_size",
-                   "treatment_assignment_effect_size"
-                   #                   "entry_time_effect_size",
+                   "prognostic_factor_effect_size",
+                   "treatment_assignment_effect_size",
+                                      "entry_time_effect_size"
 #                  "allocation_biasing_probability"
                    #                   "outcome_marginal_prevalence",
                    #                   "prognostic_factor_type",
@@ -78,7 +78,7 @@ simulation <- new_simulation(name = "alloc-model-2018-05-25-test2",
                    #                   "allocation_max_imbalance"
                    #                   "outcome_type",
                    #                   "effect_sizes",
-                 )) %>%
+                 )) simulation %>%
   simulate_from_model(nsim = num_simulations_per_core,
                       index = 1:num_cores_parallel,
                       parallel = list(socket_names = num_cores_parallel)) %>%

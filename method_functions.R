@@ -1,5 +1,4 @@
 ## @knitr methods
-source("allocation_functions.R")
 
 create_method_objects <- FALSE #' [ create method objects on sourcing? ]
 run_analysis <- FALSE #' [ evaluate methods on simulation on sourcing? ]
