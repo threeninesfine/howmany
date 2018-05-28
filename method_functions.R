@@ -7,17 +7,11 @@
 ##                        ExtendedMethod to estimate regression model parameters
 ##                        ExtendedMethod to create rerandomized uncertainty estimates
 
-create_method_objects <- FALSE #' [ create method objects on sourcing? ]
-run_analysis <- FALSE #' [ evaluate methods on simulation on sourcing? ]
-use_extended_method_approach <- FALSE
-use_method_extension_approach <- FALSE
-
 # --------------------------------------------------------------------------- #
 #' --------- [ allocation methods that also simulate outcomes ] ------------- #
-#' ------ [ (v1.2) method 1: from Model@draw (X,Tobs) return (Y,Z) ] -------- #
 # --------------------------------------------------------------------------- #
 
-#' [ function 1: simulate_outcomes() ]
+#' [ helper function 1: simulate_outcomes(). (v1.2) from Model@draw (X,Tobs) return (Y,Z) ]
 simulate_outcomes <- function( model, draw, Z ){
   logit <- function( .p ){ log( .p / ( 1 - .p ) ) }
   expit <- function( .logodds ){ exp( .logodds ) / ( 1 + exp( .logodds )) }
@@ -44,7 +38,7 @@ simulate_outcomes <- function( model, draw, Z ){
   return( Y = Y )
 } # returns outcomes (Y)
 
-#' [function 2: make_complete_randomization_with_outcomes()]
+#' [function 1: make_complete_randomization_with_outcomes()]
 make_complete_randomization_with_outcomes <- function( allocation_ratio = NULL, simulate_outcome = TRUE ){
   allocation_ratio <- ifelse(is.null( allocation_ratio ), 0.5, allocation_ratio ) #' [set allocation ratio to 0.5 if NULL]
   new_method(name = sprintf("allocation_CR-alloc-ratio_%.2f", allocation_ratio ),
@@ -64,7 +58,7 @@ make_complete_randomization_with_outcomes <- function( allocation_ratio = NULL, 
              })
 } # returns allocation sequence (Z) outcome (Y)
 
-#' [function 3: make_stratified_block_randomization_with_outcomes( )]
+#' [function 2: make_stratified_block_randomization_with_outcomes( )]
 make_stratified_block_randomization_with_outcomes <- function( block_size = NULL,
                                                                simulate_outcome = TRUE ){
   #' [ Define method parameters: block_size, X_cutpoint ]
@@ -106,7 +100,7 @@ make_stratified_block_randomization_with_outcomes <- function( block_size = NULL
              })
 } # returns allocation sequence (Z), outcome (Y)
 
-#' [function 4: make_covariate_adaptive_allocation_with_outcomes( )]
+#' [function 3: make_covariate_adaptive_allocation_with_outcomes( )]
 make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imbalance = NULL,
                                                               allocation_biasing_probability = NULL,
                                                               simulate_outcome = TRUE ){
@@ -186,7 +180,7 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
 #' ------------------ [ Estimate regression parameters ] -------------------- #
 # --------------------------------------------------------------------------- #
 
-#' [function 5: get_regression_estimates() returns (est, se, t, p)]
+#' [ helper function 2: get_regression_estimates() returns (est, se, t, p) ]
 compute_regression_estimates <- function( model, draw, out, adjusted ){
   #' [ from Model@draw (X,T) and Method@out (Y,Z) estimate (est, se, t, p) ]
   
@@ -206,7 +200,7 @@ compute_regression_estimates <- function( model, draw, out, adjusted ){
   return( fitted_model_ests ) 
 }# returns (est, se, t, p)
 
-#' [function 6: estimate_regression_parameters() returns (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
+#' [function 4: estimate_regression_parameters() returns (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
 estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL, return_extended_method = TRUE ){
   
   #' [ use: pass 'allocation_method' to base_method when calling fn() ]
@@ -266,8 +260,7 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
   }
 }
 
-
-#' [function 8: rerandomization_error_estimates_method_extension() 
+#' [function 5: rerandomization_error_estimates_method_extension() 
 rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, num_rerandomizations = NULL, return_extended_method = TRUE ){
   #' [ use: add directly to an allocation method returning allocs (Z) and outcomes (Y) ]
   #' [ example: run_method('allocation_method' + 'rerand_err_ests') ]
@@ -355,54 +348,3 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                                         num_rerandomizations = num_rerandomizations ))}))
   }
 }
-
-
-
-
-
-#' [function 7: estimate_regression_parameters_method_extension() 
-estimate_regression_parameters_method_extension <- function( base_method = NULL, adjusted = NULL ){
-  #' [ use: add directly to an allocation method returning allocs (Z) and outcomes (Y) ]
-  #' [ example: run_method('allocation_method' + 'est_regression_params') ]
-  #' [ returns: (est, se, t, p, adjusted, rerandomized, cilower, ciupper)]
-  
-  #' [make_ci() makes a Wald-type 1-alpha% confidence interval, accepts both scalar/vector input. ]
-  make_ci <- function( est, se, alpha ){
-    .make_ci <- function( est, se, alpha ){ return( est + c(-1, 1) * qnorm(1 - alpha/2) * se )}
-    .make_cis <- Vectorize( .make_ci, vectorize.args=c("est", "se"));
-    nterms <- length( est )
-    if( nterms > 1 ){
-      out <- t(.make_cis( est = est, se = se, alpha = alpha ));
-      colnames( out ) <- c("cilower", "ciupper");
-    }else{
-      out <- .make_ci( est = est, se = se, alpha = alpha );
-      names( out ) <- c("cilower", "ciupper");
-    }
-    return( out )
-  } # end make_ci()
-  
-  adjusted <- ifelse(is.null( adjusted ), TRUE, adjusted ); #' [ default is adjusted = TRUE]
-  
-  new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
-                       label = paste0("estimate regression model treatment effect, ",
-                                      ifelse( adjusted, "adjusted ", "unadjusted "),
-                                      "for prognostic factors"),
-                       method_extension = function( model, draw, out, base_method ){
-                         fitted_model <- compute_regression_estimates( model = model,
-                                                                       draw = draw,
-                                                                       out = out,
-                                                                       adjusted = adjusted )
-                         wald_type_confints <- make_ci( est = fitted_model["est"],
-                                                        se = fitted_model["se"],
-                                                        alpha = model$alpha );
-                         return(list( est = fitted_model["est"],
-                                      se = fitted_model["se"],
-                                      t = fitted_model["t"],
-                                      p = fitted_model["p"],
-                                      adjusted = adjusted,
-                                      rerandomized = FALSE,
-                                      cilower = wald_type_confints["cilower"],
-                                      ciupper = wald_type_confints["ciupper"]))
-                       })
-}
-
