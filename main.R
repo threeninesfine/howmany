@@ -22,7 +22,7 @@ num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
 #' [ Determine which phase of the simulation to be run ]
 generate_model <- TRUE #' [ Phase 1: define all models, simulate draws ]
 allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
-estimate_effects <- FALSE #' [ Phase 3: estimate tx effects (adjusted, unadjusted) ]
+estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, unadjusted) ]
 estimate_rerandomized_errors <- TRUE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
 unadjusted_analyses <- FALSE #' [ (Phases 3,4) for now, ignore unadjusted analyses (TODO: complete!) ]
 analyze_results <- FALSE #' [ Phase 5: analyze results (tables and figures) ]
@@ -70,11 +70,11 @@ if( generate_model ){
     generate_model(make_trial_allocation_model,
                    trial_size = list(32, 64, 96),
                    outcome_type = c("binary"), # , "continuous"),
-                   outcome_marginal_prevalence = c( 0.50 ),
+                   outcome_marginal_prevalence = list( 0.10, 0.50 ),
                    prognostic_factor_type = c( "binary" ), # c("continuous", "binary"),
-                   prognostic_factor_prevalence = c( 0.50 ), # c( 0.25, 0.50 ),
-                   prognostic_factor_number = c( 2 ), # c( 1, 2, 3 ),
-                   prognostic_factor_effect_size = list( 1, 1.1, 3 ),
+                   prognostic_factor_prevalence = list( 0.25, 0.50 ),
+                   prognostic_factor_number = list( 1, 2 ),
+                   prognostic_factor_effect_size = list( 1, 3 ),
                    treatment_assignment_effect_size = list(1, 1.1, 3),
                    entry_time_effect_size = list( 1, 3 ),
                    allocation_ratio = c( 0.50 ),
@@ -82,13 +82,13 @@ if( generate_model ){
                    #                 allocation_biasing_probability = c( 1.0 ),
                    alpha = c( 0.05 ),
                    vary_along = c("trial_size",
-                                  #                   "prognostic_factor_prevalence",
-                                  #                   "prognostic_factor_number",
+                                  "outcome_marginal_prevalence",
+                                  "prognostic_factor_prevalence",
+                                  "prognostic_factor_number",
                                   "prognostic_factor_effect_size",
                                   "treatment_assignment_effect_size",
                                   "entry_time_effect_size"
                                   #                  "allocation_biasing_probability"
-                                  #                   "outcome_marginal_prevalence",
                                   #                   "prognostic_factor_type",
                                   #                   "allocation_ratio",
                                   #                   "allocation_max_imbalance"
