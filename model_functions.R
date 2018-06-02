@@ -33,8 +33,7 @@ make_trial_allocation_model <- function(trial_size,
   #' [prognostic factors] Set risk factor prevalences to list of vectors of their PMFs.
   pmfX <- c( 1 - prognostic_factor_prevalence,
              prognostic_factor_prevalence )
-  probsX <- lapply( pmfX, function( .probX ){
-    rep( .probX, prognostic_factor_number )})
+  probsX <- rep( list( pmfX ), prognostic_factor_number )
   
   new_model(name = sprintf(paste0("trial_size-%s-outcome-%s-predictor-%s-",
                                   "num_predictors-%.0f-outcome-prev-%.2f-predictor_prev-%.2f-",
