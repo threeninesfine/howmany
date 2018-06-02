@@ -33,7 +33,7 @@ simulate_outcomes <- function( model, draw, Z ){
   if( model$outcome_type == "binary" ){ # sampling from Multinomial(n, p. numX)
     Y <- sapply(expit( linear_predictor ), function( .prob ){rbinom(n = length( .prob ), size = 1, prob = .prob )})
   }else{ # add Gaussian noise
-    Y <- linear_predictor + matrix(rnorm(n = model$trial_size, mean = 0, sd = 1), nrow = trial_size)
+    Y <- linear_predictor + matrix(rnorm(n = model$trial_size, mean = 0, sd = 1), nrow = model$trial_size)
   }
   return( Y = Y )
 } # returns outcomes (Y)

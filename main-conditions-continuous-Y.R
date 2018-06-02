@@ -36,6 +36,7 @@ num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel );
 num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
+eval_on_subset <- TRUE  #' [ Phase 0: define all models, simulate draws ]
 generate_model <- TRUE #' [ Phase 1: define all models, simulate draws ]
 allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
 estimate_effects <- FALSE #' [ Phase 3: estimate tx effects (adjusted, unadjusted) ]
@@ -116,17 +117,12 @@ if( generate_model ){
   simulation <- load_simulation(name = simulation_name, dir = results_directory)
 }
 
-eval_on_subset <- TRUE
 if( eval_on_subset ){
   simsub <- subset_simulation(simulation,
                               prognostic_factor_prevalence == 0.5 & 
                                 prognostic_factor_effect_size == 3 & 
                                 treatment_assignment_effect_size == 3 &
                                 entry_time_effect_size == 1 )
-  simsub <- simulate_from_model(simsub,
-                                nsim = num_simulations_per_core,
-                                index = 1:num_cores_parallel,
-                                parallel = list(socket_names = num_cores_parallel))
   #' [ Allocation methods ]
   simsub <- run_method(object = simsub,
                        methods = list( SR, SBR ),
@@ -142,82 +138,84 @@ if( eval_on_subset ){
   simsub <- run_method(object = simsub,
                            methods = get_adjusted_tx_effect[3],
                            parallel = list( socket_names = num_cores_parallel ))
-}
-
-
-# --------------------------------------------------------------------------- #
-#' -------- [ Phase 2: simulate outcomes and allocate tx groups ] ----------- #
-# --------------------------------------------------------------------------- #
-if( allocate_groups ){ 
-  simsub <- run_method(object = simsub,
-                           methods = list( SR, SBR ),
-                           parallel = list( socket_names = num_cores_parallel ))
-  #' [ run CAA separately (may take a while) ]
-  simsub <- run_method(object = simsub,
-                           methods = list( CAA ),
-                           parallel = list( socket_names = num_cores_parallel ))
-  if( estimate_rerandomized_errors ){
+}else{
+  
+  
+  # --------------------------------------------------------------------------- #
+  #' -------- [ Phase 2: simulate outcomes and allocate tx groups ] ----------- #
+  # --------------------------------------------------------------------------- #
+  if( allocate_groups ){ 
     simsub <- run_method(object = simsub,
+                         methods = list( SR, SBR ),
+                         parallel = list( socket_names = num_cores_parallel ))
+    #' [ run CAA separately (may take a while) ]
+    simsub <- run_method(object = simsub,
+                         methods = list( CAA ),
+                         parallel = list( socket_names = num_cores_parallel ))
+    if( estimate_rerandomized_errors ){
+      simsub <- run_method(object = simsub,
+                           methods = get_adjusted_tx_effect[1:2],
+                           parallel = list( socket_names = num_cores_parallel ))
+      #' [ run CAA separately (may take a while) ]
+      simsub <- run_method(object = simsub,
+                           methods = get_adjusted_tx_effect[3],
+                           parallel = list( socket_names = num_cores_parallel ))
+    }
+  }
+  
+  # --------------------------------------------------------------------------- #
+  #' -------- [ Phase 3: estimate tx effects (adjusted, unadjusted) ] --------- #
+  # --------------------------------------------------------------------------- #
+  if( estimate_effects ){
+    simulation <- run_method(object = simulation,
                              methods = get_adjusted_tx_effect[1:2],
                              parallel = list( socket_names = num_cores_parallel ))
     #' [ run CAA separately (may take a while) ]
-    simsub <- run_method(object = simsub,
+    simulation <- run_method(object = simulation,
                              methods = get_adjusted_tx_effect[3],
                              parallel = list( socket_names = num_cores_parallel ))
+    if( unadjusted_analyses ){
+      simulation <- run_method(object = simulation,
+                               methods = get_unadjusted_tx_effect[1:2],
+                               parallel = list( socket_names = num_cores_parallel ))
+      #' [ run CAA separately (may take a while) ]
+      simulation <- run_method(object = simulation,
+                               methods = get_unadjusted_tx_effect[3],
+                               parallel = list( socket_names = num_cores_parallel ))
+    }
   }
-}
-
-# --------------------------------------------------------------------------- #
-#' -------- [ Phase 3: estimate tx effects (adjusted, unadjusted) ] --------- #
-# --------------------------------------------------------------------------- #
-if( estimate_effects ){
-  simulation <- run_method(object = simulation,
-                           methods = get_adjusted_tx_effect[1:2],
-                           parallel = list( socket_names = num_cores_parallel ))
-  #' [ run CAA separately (may take a while) ]
-  simulation <- run_method(object = simulation,
-                           methods = get_adjusted_tx_effect[3],
-                           parallel = list( socket_names = num_cores_parallel ))
-  if( unadjusted_analyses ){
-    simulation <- run_method(object = simulation,
-                             methods = get_unadjusted_tx_effect[1:2],
-                             parallel = list( socket_names = num_cores_parallel ))
-    #' [ run CAA separately (may take a while) ]
-    simulation <- run_method(object = simulation,
-                             methods = get_unadjusted_tx_effect[3],
-                             parallel = list( socket_names = num_cores_parallel ))
-  }
-}
-
-# --------------------------------------------------------------------------- #
-#' ---- [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ] ---- #
-# --------------------------------------------------------------------------- #
-if( estimate_rerandomized_errors ){
-  simulation <- run_method(object = simulation,
-                           methods = get_rerandomized_errors_adjusted_tx_effect[1:2],
-                           parallel = list( socket_names = num_cores_parallel ))
-  #' [ run CAA separately (may take a while) ]
-  simulation <- run_method(object = simulation,
-                           methods = get_rerandomized_errors_adjusted_tx_effect[3],
-                           parallel = list( socket_names = num_cores_parallel ))
-  if( unadjusted_analyses ){
-    simulation <- run_method(object = simulation,
-                             methods = get_rerandomized_errors_unadjusted_tx_effect[1:2],
-                             parallel = list( socket_names = num_cores_parallel ))
-    #' [ run CAA separately (may take a while) ]
-    simulation <- run_method(object = simulation,
-                             methods = get_rerandomized_errors_unadjusted_tx_effect[3],
-                             parallel = list( socket_names = num_cores_parallel ))
-  }
-}
   
-# --------------------------------------------------------------------------- #
-#' --------- [ Phase 5: analyze results (tables and figures) ] -------------- #
-# --------------------------------------------------------------------------- #
-if( analyze_results ){
-  #' [ todo: mock tables and figures here! ]
+  # --------------------------------------------------------------------------- #
+  #' ---- [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ] ---- #
+  # --------------------------------------------------------------------------- #
+  if( estimate_rerandomized_errors ){
+    simulation <- run_method(object = simulation,
+                             methods = get_rerandomized_errors_adjusted_tx_effect[1:2],
+                             parallel = list( socket_names = num_cores_parallel ))
+    #' [ run CAA separately (may take a while) ]
+    simulation <- run_method(object = simulation,
+                             methods = get_rerandomized_errors_adjusted_tx_effect[3],
+                             parallel = list( socket_names = num_cores_parallel ))
+    if( unadjusted_analyses ){
+      simulation <- run_method(object = simulation,
+                               methods = get_rerandomized_errors_unadjusted_tx_effect[1:2],
+                               parallel = list( socket_names = num_cores_parallel ))
+      #' [ run CAA separately (may take a while) ]
+      simulation <- run_method(object = simulation,
+                               methods = get_rerandomized_errors_unadjusted_tx_effect[3],
+                               parallel = list( socket_names = num_cores_parallel ))
+    }
+  }
+  
+  # --------------------------------------------------------------------------- #
+  #' --------- [ Phase 5: analyze results (tables and figures) ] -------------- #
+  # --------------------------------------------------------------------------- #
+  if( analyze_results ){
+    #' [ todo: mock tables and figures here! ]
+  }
+  
+  
 }
-
 
 
 
