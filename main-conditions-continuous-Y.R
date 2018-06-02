@@ -131,12 +131,21 @@ if( eval_on_subset ){
   simsub <- run_method(object = simsub,
                        methods = list( CAA ),
                        parallel = list( socket_names = num_cores_parallel ))
+  
   #' [ Estimate treatment effect ]
   simsub <- run_method(object = simsub,
                            methods = get_adjusted_tx_effect[1:2],
                            parallel = list( socket_names = num_cores_parallel ))
   simsub <- run_method(object = simsub,
                            methods = get_adjusted_tx_effect[3],
+                           parallel = list( socket_names = num_cores_parallel ))
+  
+  simulation <- run_method(object = simulation,
+                           methods = get_rerandomized_errors_adjusted_tx_effect[1:2],
+                           parallel = list( socket_names = num_cores_parallel ))
+  #' [ run CAA separately (may take a while) ]
+  simulation <- run_method(object = simulation,
+                           methods = get_rerandomized_errors_adjusted_tx_effect[3],
                            parallel = list( socket_names = num_cores_parallel ))
 }else{
   
