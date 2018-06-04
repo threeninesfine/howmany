@@ -2,7 +2,7 @@
 
 coverage <- new_metric("coverage", "Coverage probability",
                        metric = function( model, out ){
-                         return(( out$cilower <= model$bX ) & ( model$bX <= out$ciupper ))
+                         return(( out$cilower <= model$bZ ) && ( model$bZ <= out$ciupper ))
                        })
 
 power_p_value <- new_metric("power_p_value", "Power by P-value",
@@ -12,15 +12,15 @@ power_p_value <- new_metric("power_p_value", "Power by P-value",
 
 power_ci <- new_metric("power_ci", "Power by CI",
                        metric = function( model, out ){
-                         return(( model$bX < out$cilower ) | ( model$bX > out$ciupper ))
+                         return(( model$bZ < out$cilower ) || ( model$bZ > out$ciupper ))
                        })
 
 bias <- new_metric("bias", "Bias",
                         metric = function(model, out){
-                          return( model$bX - out$est )
+                          return( model$bZ - out$est )
                           })
 
 mse <- new_metric("mse", "MSE",
                        metric = function(model, out){
-                         return(( model$bX - out$est )^2)
+                         return(( model$bZ - out$est )^2)
                        })
