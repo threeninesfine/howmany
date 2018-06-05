@@ -12,7 +12,7 @@ power_p_value <- new_metric("power_p_value", "Power by P-value",
 
 power_ci <- new_metric("power_ci", "Power by CI",
                        metric = function( model, out ){
-                         return(( model$bZ < out$cilower ) || ( model$bZ > out$ciupper ))
+                         return(( 0 < out$cilower ) | ( 0 > out$ciupper ))
                        })
 
 bias <- new_metric("bias", "Bias",
