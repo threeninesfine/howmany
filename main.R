@@ -30,7 +30,7 @@ simulation_name <- "alloc-model-AWS"
 results_directory <- "./results/"
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H:%M") #' [ timestamp ]
 num_cores_parallel <- max(1, parallel::detectCores() - 1); #' [ for parallel computing ]
-num_simulations <- 100; #' [ simulations per design matrix (all cores!)]
+num_simulations <- 10000; #' [ simulations per design matrix (all cores!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
 num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
 
@@ -96,7 +96,7 @@ if( generate_model ){
                    vary_along = c("trial_size",
                                   # "outcome_marginal_prevalence",
                                   "prognostic_factor_prevalence",
-                                  # "prognostic_factor_number",
+                                  "prognostic_factor_number",
                                   "prognostic_factor_effect_size",
                                   "treatment_assignment_effect_size",
                                   "entry_time_effect_size"
@@ -223,22 +223,49 @@ if( followup_analysis ){
                                                                outcome_marginal_prevalence == 0.5 ))
   
   sim2 <- subset_simulation( simulation, subset = model_indexes_of_interest )
+  sim2 <- simulate_from_model( sim2,
+                               nsim = num_simulations_per_core,
+                               index = 1:num_cores_parallel,
+                               parallel = list(socket_names = num_cores_parallel))
   
   
   #' need to generate base_method() output first
   sim2 <- run_method(object = sim2,
-                     methods = list( SR, SBR, CAA),
+                     methods = list( SR, SBR, CAA_deterministic, CAA_probabilistic),
                      parallel = list( socket_names = num_cores_parallel ))
-  sim2 <- run_method(object = sim2,
-                     methods = list( SR + adjusted_ests,
-                                     SBR + adjusted_ests,
-                                     CAA + adjusted_ests ),
-                     parallel = list( socket_names = num_cores_parallel ))
-  sim2 <- run_method(object = sim2,
-                     methods = list( SR + adjusted_ests_rerandomized,
-                                     SBR + adjusted_ests_rerandomized,
-                                     CAA + adjusted_ests_rerandomized ),
-                     parallel = list( socket_names = num_cores_parallel ))
+  
+  if( estimate_effects ){
+    sim2 <- run_method(object = sim2,
+                             methods = list( SR + adjusted_ests,
+                                             SBR + adjusted_ests,
+                                             CAA_deterministic + adjusted_ests,
+                                             CAA_probabilistic + adjusted_ests),
+                             parallel = list( socket_names = num_cores_parallel ))
+    if( unadjusted_analyses ){
+      sim2 <- run_method(object = sim2,
+                               methods = list( SR + unadjusted_ests,
+                                               SBR + unadjusted_ests,
+                                               CAA_deterministic + unadjusted_ests,
+                                               CAA_probabilistic + unadjusted_ests),
+                               parallel = list( socket_names = num_cores_parallel ))
+    }
+  }
+  
+  # --------------------------------------------------------------------------- #
+  #' ---- [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ] ---- #
+  # --------------------------------------------------------------------------- #
+  if( estimate_rerandomized_errors ){
+    sim2 <- run_method(object = sim2,
+                             methods = list( CAA_deterministic + adjusted_ests_rerandomized,
+                                             CAA_probabilistic + adjusted_ests_rerandomized ),
+                             parallel = list( socket_names = num_cores_parallel ))
+    if( unadjusted_analyses ){
+      sim2 <- run_method(object = sim2,
+                               methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
+                                               CAA_probabilistic + unadjusted_ests_rerandomized ),
+                               parallel = list( socket_names = num_cores_parallel ))
+    }
+  }
   
   sim2 <- evaluate(object = sim2,
                    metrics = list( coverage,
