@@ -108,7 +108,7 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
   allocation_max_imbalance <- ifelse(is.null( allocation_max_imbalance ), 2, allocation_max_imbalance )
   allocation_biasing_probability <- ifelse(is.null( allocation_biasing_probability ), 1.0, allocation_biasing_probability )
   
-  new_method(name = sprintf("Allocation_CAA-max-imbalance_%.0f-pbiasedalloc_%.2f", allocation_max_imbalance, allocation_biasing_probability ),
+  new_method(name = sprintf("allocation_CAA-max-imbalance_%.0f-pbiasedalloc_%.2f", allocation_max_imbalance, allocation_biasing_probability ),
              label = sprintf("Allocation - covariate adaptive allocation - max imbalance %.0f - allocation biasing probability %.2f", 
                              allocation_max_imbalance, allocation_biasing_probability ),
              settings = list( allocation_max_imbalance = allocation_max_imbalance,

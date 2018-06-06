@@ -97,6 +97,7 @@ if( evaluate_this_simulation ){
   sim <- load_simulation( name = "contY-binX-big-subset",
                           dir = "~/Downloads/MSThesis/expanded_datasets/contY-binX-big/results/" )
   
+  #' fix model references
   sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- sim@dir; })
   sapply( 1:length( sim@draws_refs ), function( .index ){ sim@draws_refs[[ .index ]][[1]]@dir <<- sim@dir; }) #' assuming only one draw
   sapply( 1:length( sim@output_refs ), function( .index.i ){ 
@@ -109,7 +110,36 @@ if( evaluate_this_simulation ){
     sapply( 1:num_evals_refs, function( .index.j ){ 
       sim@evals_refs[[ .index.i ]][[ .index.j ]]@dir <<- sim@dir;})})
   
+  #' load adjusted estimates in.
   adj_ests <- load( sim@output_refs[[34]][1:15] )
   allocs <- load( sim@output_refs[[34]][16:30] )
 }
 
+
+#' Test method functions
+SR <- make_complete_randomization_with_outcomes()
+SBR <- make_stratified_block_randomization_with_outcomes()
+CAA <- make_covariate_adaptive_allocation_with_outcomes()
+
+adjusted_ests <- estimate_regression_parameters(return_extended_method = FALSE, adjusted = TRUE)
+
+
+fix_directories <- function( simulation ){
+  sapply( 1:length( simulation@model_refs ), function( .index ){ simulation@model_refs[[ .index ]]@dir <<- ""; })
+  sapply( 1:length( simulation@draws_refs ), function( .index ){ simulation@draws_refs[[ .index ]][[1]]@dir <<- simulation@dir; }) #' assuming only one draw
+  sapply( 1:length( simulation@output_refs ), function( .index.i ){ 
+    num_output_refs <- length( simulation@output_refs[[ .index.i ]] );
+    sapply( 1:num_output_refs, function( .index.j ){ 
+      simulation@output_refs[[ .index.i ]][[ .index.j ]]@dir <<- simulation@dir;})})
+  
+  sapply( 1:length( simulation@evals_refs ), function( .index.i ){ 
+    num_evals_refs <- length( simulation@evals_refs[[ .index.i ]] );
+    sapply( 1:num_evals_refs, function( .index.j ){ 
+      simulation@evals_refs[[ .index.i ]][[ .index.j ]]@dir <<- simulation@dir;})})
+}
+
+
+
+#' Read in output by variable
+
+times <- sapply( 1:9, function( method_index ){ output( sim2 )[[ method_index ]]@out[[1]]$time })
