@@ -55,23 +55,19 @@ source("eval_functions.R")#' [ step 3: define your Metrics, evaluation measures 
 #' [ Step 1: define treatment allocation Methods ]
 SR <- make_complete_randomization_with_outcomes()
 SBR <- make_stratified_block_randomization_with_outcomes()
-CAA <- make_covariate_adaptive_allocation_with_outcomes()
+CAA_deterministic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 1)
+CAA_probabilistic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 0.7)
 
-allocation_methods_list <- list( SR, SBR, CAA ); # pass these to ExtendedMethods (for tracking index:method)
-
-#' [ Step 2b: define ExtendedMethods to estimate tx effects ]
-get_adjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
-  estimate_regression_parameters( base_method = .alloc_method, adjusted = TRUE, return_extended_method = TRUE )})
-get_unadjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
-  estimate_regression_parameters( base_method = .alloc_method, adjusted = FALSE, return_extended_method = TRUE )})
-
-#' [ Step 3b: define ExtendedMethods to compute rerandomized std. error ests ]
-get_rerandomized_errors_adjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
-  rerandomized_error_estimates( base_method = .alloc_method, adjusted = TRUE, 
-                                num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
-get_rerandomized_errors_unadjusted_tx_effect <- lapply( allocation_methods_list, function( .alloc_method ){ 
-  rerandomized_error_estimates( base_method = .alloc_method, adjusted = FALSE, 
-                                num_rerandomizations = num_reallocations, return_extended_method = TRUE )})
+#' [ Step 2b: define MethodExtensions to estimate tx effects ]
+adjusted_ests <- estimate_regression_parameters( adjusted = TRUE, return_extended_method = FALSE )
+unadjusted_ests <-  estimate_regression_parameters( adjusted = FALSE, return_extended_method = FALSE )
+#' [ Step 3b: define MethodExtensions to compute rerandomized std. error ests ]
+adjusted_ests_rerandomized <-   rerandomized_error_estimates( adjusted = TRUE, 
+                                                              num_rerandomizations = num_reallocations, 
+                                                              return_extended_method = FALSE )
+unadjusted_ests_rerandomized <-   rerandomized_error_estimates( adjusted = FALSE, 
+                                                                num_rerandomizations = num_reallocations, 
+                                                                return_extended_method = FALSE )
 
 # --------------------------------------------------------------------------- #
 #' ------------ [ III. Simulation design & evaluation ] --------------------- #
@@ -115,6 +111,7 @@ if( generate_model ){
                         parallel = list(socket_names = num_cores_parallel))
 }else{ #' [ if generate_model = FALSE, load in existing model ]
   simulation <- load_simulation(name = simulation_name, dir = results_directory)
+
 }
 
 if( eval_on_subset ){
@@ -148,28 +145,13 @@ if( eval_on_subset ){
                            methods = get_rerandomized_errors_adjusted_tx_effect[3],
                            parallel = list( socket_names = num_cores_parallel ))
 }else{
-  
-  
   # --------------------------------------------------------------------------- #
   #' -------- [ Phase 2: simulate outcomes and allocate tx groups ] ----------- #
   # --------------------------------------------------------------------------- #
   if( allocate_groups ){ 
-    simsub <- run_method(object = simsub,
-                         methods = list( SR, SBR ),
-                         parallel = list( socket_names = num_cores_parallel ))
-    #' [ run CAA separately (may take a while) ]
-    simsub <- run_method(object = simsub,
-                         methods = list( CAA ),
-                         parallel = list( socket_names = num_cores_parallel ))
-    if( estimate_rerandomized_errors ){
-      simsub <- run_method(object = simsub,
-                           methods = get_adjusted_tx_effect[1:2],
-                           parallel = list( socket_names = num_cores_parallel ))
-      #' [ run CAA separately (may take a while) ]
-      simsub <- run_method(object = simsub,
-                           methods = get_adjusted_tx_effect[3],
-                           parallel = list( socket_names = num_cores_parallel ))
-    }
+    simulation <- run_method(object = simulation,
+                             methods = list( SR, SBR, CAA_deterministic, CAA_probabilistic),
+                             parallel = list( socket_names = num_cores_parallel ))
   }
   
   # --------------------------------------------------------------------------- #
@@ -177,19 +159,17 @@ if( eval_on_subset ){
   # --------------------------------------------------------------------------- #
   if( estimate_effects ){
     simulation <- run_method(object = simulation,
-                             methods = get_adjusted_tx_effect[1:2],
-                             parallel = list( socket_names = num_cores_parallel ))
-    #' [ run CAA separately (may take a while) ]
-    simulation <- run_method(object = simulation,
-                             methods = get_adjusted_tx_effect[3],
+                             methods = list( SR + adjusted_ests,
+                                             SBR + adjusted_ests,
+                                             CAA_deterministic + adjusted_ests,
+                                             CAA_probabilistic + adjusted_ests),
                              parallel = list( socket_names = num_cores_parallel ))
     if( unadjusted_analyses ){
       simulation <- run_method(object = simulation,
-                               methods = get_unadjusted_tx_effect[1:2],
-                               parallel = list( socket_names = num_cores_parallel ))
-      #' [ run CAA separately (may take a while) ]
-      simulation <- run_method(object = simulation,
-                               methods = get_unadjusted_tx_effect[3],
+                               methods = list( SR + unadjusted_ests,
+                                               SBR + unadjusted_ests,
+                                               CAA_deterministic + unadjusted_ests,
+                                               CAA_probabilistic + unadjusted_ests),
                                parallel = list( socket_names = num_cores_parallel ))
     }
   }
@@ -199,19 +179,13 @@ if( eval_on_subset ){
   # --------------------------------------------------------------------------- #
   if( estimate_rerandomized_errors ){
     simulation <- run_method(object = simulation,
-                             methods = get_rerandomized_errors_adjusted_tx_effect[1:2],
-                             parallel = list( socket_names = num_cores_parallel ))
-    #' [ run CAA separately (may take a while) ]
-    simulation <- run_method(object = simulation,
-                             methods = get_rerandomized_errors_adjusted_tx_effect[3],
+                             methods = list( CAA_deterministic + adjusted_ests_rerandomized,
+                                             CAA_probabilistic + adjusted_ests_rerandomized ),
                              parallel = list( socket_names = num_cores_parallel ))
     if( unadjusted_analyses ){
       simulation <- run_method(object = simulation,
-                               methods = get_rerandomized_errors_unadjusted_tx_effect[1:2],
-                               parallel = list( socket_names = num_cores_parallel ))
-      #' [ run CAA separately (may take a while) ]
-      simulation <- run_method(object = simulation,
-                               methods = get_rerandomized_errors_unadjusted_tx_effect[3],
+                               methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
+                                               CAA_probabilistic + unadjusted_ests_rerandomized ),
                                parallel = list( socket_names = num_cores_parallel ))
     }
   }
