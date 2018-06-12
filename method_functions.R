@@ -296,7 +296,8 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                            model_ests_observed <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
                            
                            #' [ step 2: estimate regression parameters from #('num_rerandomizations') re-randomized allocations  ]
-                           model_ests_rerand <- t(sapply( 1:num_rerandomizations, function( rerand_i ){
+                           model_ests_rerand <- 
+                             t(sapply( 1:num_rerandomizations, function( rerand_i ){
                              #' [ copy output and replace observed allocs (Z) with rerandomized allocs ]
                              out_rerand_i <- out; 
                              out_rerand_i$Z <- base_method@method( model = model, draw = draw, simulate_outcome = FALSE )$Z
@@ -306,6 +307,7 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                            se_rerand <- sd( model_ests_rerand[,"est"], na.rm = TRUE)
                            #' [ TODO: (p-value Q): how many re-randomized allocations have a more extreme outcome than what was observed? ]
                            p_rerand <- mean(abs( model_ests_rerand[,"t"] ) >= abs( model_ests_observed["t"] )) #' [ by (a) |t_rerand| >= |t_obs| vs. (b) p_rerand <  p_obs ]
+                           
                            ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model$alpha/2, 1 - model$alpha/2 ))
                            return(list( est = model_ests_observed["est"],
                                         se = se_rerand,
@@ -322,15 +324,26 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                                         ifelse( adjusted, "adjusted ", "unadjusted "),
                                         "for prognostic factors, RERANDOMIZED error estimates"),
                          method_extension = function( model, draw, out, base_method ){
+                           memoization.hash.ests.by.alloc <- new.env( hash = TRUE ); #' hash table for storing computations
                            #' [ step 1: estimate regression parameters from observed data (est, se, t, p)]
                            model_ests_observed <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
+                           model_ests_rerand <- matrix(NA, nrow = num_rerandomizations, ncol = 4, dimnames = list(NULL, c("est", "se", "t", "p")))
+                           model_ests_rerand[ 1, ] <- model_ests_observed; #' always include observed data in rerandomized set (guarantees p > 0)
+                           key_obs <- paste( out$Z, collapse = ":" );
+                           assign( key_obs, model_ests_observed, envir = memoization.hash.ests.by.alloc ); # assign observed ests first key:value pair
                            
                            #' [ step 2: estimate regression parameters from #('num_rerandomizations') re-randomized allocations  ]
-                           model_ests_rerand <- t(sapply( 1:num_rerandomizations, function( rerand_i ){
-                             #' [ copy output and replace observed allocs (Z) with rerandomized allocs ]
-                             out_rerand_i <- out; 
+                           out_rerand_j <- out; #' copy output object (for calling base_method with rerandomized allocs)
+                           for( rerand_j in 2:num_rerandomizations ){
                              out_rerand_i$Z <- base_method@method( model = model, draw = draw, simulate_outcome = FALSE )$Z
-                             return( compute_regression_estimates( model = model, draw = draw, out = out_rerand_i, adjusted = adjusted ))}))
+                             key_j <- paste( out_rerand_i$Z, collapse = ":" );
+                             if(!exists( key_j, envir = memoization.hash.ests.by.alloc )){
+                               model_ests_rerand[ rerand_j, ] <- compute_regression_estimates( model = model, draw = draw, out = out_rerand_i, adjusted = adjusted );
+                               assign( key_j, model_ests_rerand[ rerand_j, ], envir = memoization.hash.ests.by.alloc );
+                             }else{
+                               model_ests_rerand[ rerand_j, ] <- get( key_j, envir = memoization.hash.ests.by.alloc );
+                             }
+                           }
                            
                            #' [ step 3: compute significance measures from rerandomized output ]
                            se_rerand <- sd( model_ests_rerand[,"est"], na.rm = TRUE)
@@ -345,6 +358,30 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                                         rerandomized = TRUE,
                                         cilower = ci_rerand[1],
                                         ciupper = ci_rerand[2],
-                                        num_rerandomizations = num_rerandomizations ))}))
+                                        num_rerandomizations = num_rerandomizations,
+                                        hash = memoization.hash.ests.by.alloc ))}))
   }
 }
+
+#' [ 8 June 2018 (Friday) Amalia email: ]
+# Hey, I’ve been thinking about this power idea.  
+# And what I’m wondering is what is being tested as potentially included in those confidence intervals.  
+# 
+# So for the p-value based way to calculate power, 
+# we are asking whether zero is in the confidence interval, 
+# or equivalently whether the p-value is less than 0.05.  
+# 
+# For the re-randomization, 
+# the question we should be asking is whether 
+# the confidence interval from all the re-allocated datasets 
+# includes the value of the estimated treatment effect 
+# from the observed data from that draw, prior to re-allocation.  Right?  
+#   
+# So from the CAA_probabilistic_output spreadsheet, 
+# the question is whether column B (est.est) is between the values of columns H and I, 
+# cilower.2.5% and ciupper.97.5%.  
+# 
+# The question is, how extreme is the estimate from the data.  
+# Call me today if you want.  
+# When I look at the spreadsheet there seem to be plenty of times when the value of column B is in the interval.  
+# I wonder if we are thinking about this the same way.
