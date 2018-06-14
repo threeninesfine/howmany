@@ -10,7 +10,7 @@ power_ci <- new_metric("power_ci", "Power by CI", metric = function( model, out 
   return(( 0 < out$cilower ) | ( 0 > out$ciupper ))})
 
 power_rerand <- new_metric("power_rerand", "Power by rerandomized CI", metric = function( model, out ){
-  return(( out$cilower <= out$est ) && ( out$est <= out$ciupper ))})
+  return(( out$est < out$cilower ) | ( out$est > out$ciupper ))})
 
 bias <- new_metric("bias", "Bias", metric = function(model, out){
   return( model$bZ - out$est ) })

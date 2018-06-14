@@ -75,6 +75,10 @@ if( evaluate_this_simulation ){
   
   #' load in the models, draws, and output.
   muh_models <- load( simsub@model_refs )
+  muh_evals <- load_evals_from_ref( simsub@evals_refs )
+  df_evals <- as.data.frame( muh_evals )
+  
+  muh_metrics <- apply( df_evals[,c("coverage", "power_p_value", "power_ci", "bias", "mse")], 2, mean )
   #' muh_draws <- load( simsub@draws_refs )
   
   #' Look at what output references are available

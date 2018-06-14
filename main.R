@@ -203,6 +203,12 @@ if( analyze_results ){
                 se_format = "None",
                 output_type = "latex",
                 format_args = list(nsmall=3, digits=3))
+  tabulate_eval(object = sim2,
+                method_names = useful_methods,
+                metric_name = "power_rerand",
+                se_format = "None",
+                output_type = "latex",
+                format_args = list(nsmall=3, digits=3))
 }
 
 
@@ -222,7 +228,7 @@ if( followup_analysis ){
                                                                trial_size == 96 &
                                                                outcome_marginal_prevalence == 0.5 ))
   
-  sim2 <- subset_simulation( simulation, subset = model_indexes_of_interest )
+  sim2 <- subset_simulation( sim, subset = model_indexes_of_interest )
   sim2 <- simulate_from_model( sim2,
                                nsim = num_simulations_per_core,
                                index = 1:num_cores_parallel,
@@ -271,10 +277,7 @@ if( followup_analysis ){
                    metrics = list( coverage,
                                    power_p_value,
                                    power_ci,
-                                   bias,
-                                   mse))  
-  method_names <- unique( sapply( sim2@evals_refs[[1]], function( .object ){ .object@method_name }) )
-  useful_methods <- method_names[which(nchar( method_names ) > 48)]
+                                   power_rerand ))
 }
 
 
