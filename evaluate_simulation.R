@@ -12,7 +12,7 @@ library("simulator")
 
 load_sim_from_file <- FALSE
 save_output_as_csv <- FALSE
-run_chapter3 <- FALSE 
+output_dir <- "./results/"
 #' -------------------------------------------------------------------------- #
 #'         [ Chapter 1: How to view simulation objects from stored Rdata ]
 #' -------------------------------------------------------------------------- #
@@ -48,7 +48,6 @@ if( load_sim_from_file ){
                                                                outcome_marginal_prevalence == 0.5 ))
   
   sim2 <- subset_simulation( sim, subset = model_indexes_of_interest )
-  
 }
 
 
@@ -87,41 +86,44 @@ if( save_output_as_csv ){
     dfs[[ i ]]  <- data.frame(t(sapply( muh_output[[ out.index ]]@out, function( .list ){ unlist( .list )})))
     if(dim( dfs[[i]] )[2] == 9){
       dimnames(dfs[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "time.elapsed")
+      dfs[[i]]$num_rerandomizations = 0;
     }else{
       dimnames(dfs[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations", "time.elapsed")
     } 
   }
   
-  true_trt_effect <- 2;
-  
+  #' [ Compute metrics on data frame output]
   metrics_by_dfs <- list();
+  true_trt_effect <- model( sim2 )@params$bZ
   for( i in 1:length( dfs )){
     dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
     dfs[[i]]$power.rerand <- with( dfs[[i]], est < cilower | est > ciupper )
     dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
-    metrics_by_dfs[[i]] <- apply( dfs[[i]][, c("power.pvalue", "power.rerand", "coverage", "bias")], 2, mean)
+    metrics_by_dfs[[i]] <- apply( dfs[[i]][, c("adjusted","rerandomized","power.pvalue", "power.rerand", "coverage", "bias")], 2, mean)
   }
+  
+  #' [ Output: Merge all dfs into single data frame (to save)]
+  output_df <- dfs[[1]];
+  for( i in 2:length( dfs )){
+    output_df <- merge(dfs_all, dfs[[i]], all = TRUE);
+  }
+  
+  
+  #' [ Make unique identifier for simulation results ]
+  index_exclude <- which( sapply(model(sim2)@params, function(.x) length(.x)) > 1 ) # exclude non-scalars
+  id_sim <- paste0(model(sim2)@params[ -index_exclude ], collapse = "-")
+  
+  #' [ Evaluations: Combine metrics into one table, append simulation conditions]
+  metrics_df <- do.call(rbind, metrics_by_dfs)
+  metrics_df_with_id <- cbind.data.frame( model( sim2 )@params[-index_exclude], metrics_df )
 
-  # store all information on metrics in metrics_all
-  metrics_all <- data.frame(do.call( rbind, metrics_by_dfs ))
-  
-  muh_evals <- evals( sim2 ) %>% 
-    subset_evals( method_names = useful_methods,
-                  metric_names = c("coverage", "power_p_value", "power_ci", "power_rerand" ) )
-  
-  #' load in the models, draws, and output.
-  muh_models <- load( sim2@model_refs )
-  # muh_draws <- load( sim@draws_refs )
-  muh_evals <- load_evals_from_ref( sim@evals_refs )
-  df_evals <- as.data.frame( muh_evals )
-  
-  muh_metrics <- apply( df_evals[,c("coverage", "power_p_value", "power_ci", "bias", "mse")], 2, mean )
-  
-  muh_evals_new <- evaluate(object = muh_output, metrics = list(coverage, power_p_value, power_ci ))
-  
-  #' ------------------------------------------------------------------------ #
-  #' -------------------------- junk code below ----------------------------- #
+  if( write_output ){
+    write.csv( output_df, file = paste0(output_dir,"output_", id_sim, ".csv"), row.names = FALSE )
+  }
+  if( write_evals ){
+    write.csv( metrics_df_with_id, file = paste0(output_dir,"metrics-simulation.csv"), row.names = FALSE, append = TRUE)
+  }
   
   if( modify_reference_dirs ){
     sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- ""; })
@@ -130,3 +132,21 @@ if( save_output_as_csv ){
     sapply( 1:num_output_refs, function( .index.j ){ sim@output_refs[[ .index.i ]][[ .index.j ]]@dir <<- "";})}) 
   }
 }
+
+
+#' ------------------------------------------------------------------------ #
+#' -------------------------- junk code below ----------------------------- #
+
+#' muh_evals <- evals( sim2 ) %>% 
+#'   subset_evals( method_names = useful_methods,
+#'                 metric_names = c("coverage", "power_p_value", "power_ci", "power_rerand" ) )
+#' 
+#' #' load in the models, draws, and output.
+#' muh_models <- load( sim2@model_refs )
+#' # muh_draws <- load( sim@draws_refs )
+#' muh_evals <- load_evals_from_ref( sim@evals_refs )
+#' df_evals <- as.data.frame( muh_evals )
+#' 
+#' muh_metrics <- apply( df_evals[,c("coverage", "power_p_value", "power_ci", "bias", "mse")], 2, mean )
+#' 
+#' muh_evals_new <- evaluate(object = muh_output, metrics = list(coverage, power_p_value, power_ci ))
