@@ -11,7 +11,6 @@ library("simulator")
 
 
 load_sim_from_file = FALSE
-run_scratch_code = FALSE
 write_evals = TRUE
 write_output = TRUE
 resultsdir_path <- "~/Downloads/MSThesis/expanded_datasets/sim-study/results/" 
@@ -137,94 +136,5 @@ for( sim_j in 1:4 ){
   }
   cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time:")); print( proc.time() - ptm.all );
 }
-
-
-
-#' -------------------------------------------------------------------------- #
-#'         [ Chapter 2: How to load simulation results (output and evals)]
-#' -------------------------------------------------------------------------- #
-if( run_scratch_code ){
-  #' [ 'modify_reference_dirs' changes 'simulator' object directory attributes (for loading objects to memory from references) ]
-  if( modify_reference_dirs ){
-    sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- sim@dir; })
-    sapply( 1:length( sim@draws_refs ), function( .index ){ sim@draws_refs[[ .index ]][[1]]@dir <<- sim@dir; }) #' assuming only one draw
-    sapply( 1:length( sim@output_refs ), function( .index.i ){ num_output_refs <- length( sim@output_refs[[ .index.i ]] );
-      sapply( 1:num_output_refs, function( .index.j ){ sim@output_refs[[ .index.i ]][[ .index.j ]]@dir <<- sim@dir;})}) 
-    sapply( 1:length( sim@evals_refs ), function( .index.i ){ num_evals_refs <- length( sim@evals_refs[[ .index.i ]] );
-      sapply( 1:num_evals_refs, function( .index.j ){ sim@evals_refs[[ .index.i ]][[ .index.j ]]@dir <<- sim@dir;})})
-  }
-  
-  #' [ Find the indexes corresponding to regression estimates, extract and save them. ]
-  muh_output <- output( sim2 )
-  output_method_names <- sapply( muh_output, function( .object ){ .object@method_name })
-  methods_of_interest <- c("adjusted-regression-ests", "adjusted-regression-ests-RERANDOMIZED-error-ests",
-                           "unadjusted-regression-ests", "unadjusted-regression-ests-RERANDOMIZED-error-ests")
-  output_indices_methods_of_interest <- which( output_method_names %in% useful_methods )
-  
-  #' [ Change proc_time values to elapsed_time (to allow making data.frames)]
-  sapply( output_indices_methods_of_interest, function( out_i ){ 
-    sapply( 1:length( muh_output[[ out_i ]]@out ), function( draw_j ){
-      muh_output[[ out_i ]]@out[[draw_j]]$time <<- muh_output[[ out_i ]]@out[[draw_j]]$time[3]; 
-    })
-  })
-  
-
-  
-  #' [ Compute metrics on data frame output]
-  metrics_by_dfs <- list();
-  true_trt_effect <- model( sim2 )@params$bZ
-  for( i in 1:length( dfs )){
-    dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
-    dfs[[i]]$power.rerand <- with( dfs[[i]], est < cilower | est > ciupper )
-    dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
-    dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
-    metrics_by_dfs[[i]] <- apply( dfs[[i]][, c("adjusted","rerandomized","power.pvalue", "power.rerand", "coverage", "bias")], 2, mean)
-  }
-  
-  #' [ Output: Merge all dfs into single data frame (to save)]
-  output_df <- dfs[[1]];
-  for( i in 2:length( dfs )){
-    output_df <- merge(dfs_all, dfs[[i]], all = TRUE);
-  }
-  
-  #' [ Make unique identifier for simulation results ]
-  index_exclude <- which( sapply(model(sim2)@params, function(.x) length(.x)) > 1 ) # exclude non-scalars
-  id_sim <- paste0(model(sim2)@params[ -index_exclude ], collapse = "-")
-  
-  #' [ Evaluations: Combine metrics into one table, append simulation conditions]
-  metrics_df <- do.call(rbind, metrics_by_dfs)
-  metrics_df_with_id <- cbind.data.frame( model( sim2 )@params[-index_exclude], metrics_df )
-  
-  if( write_output ){
-    write.csv( output_df, file = paste0(output_dir,"output_", id_sim, ".csv"), row.names = FALSE )
-  }
-  if( write_evals ){
-    write.csv( metrics_df_with_id, file = paste0(output_dir, metrics_file_name), row.names = FALSE, append = TRUE)
-  }
-  
-  if( modify_reference_dirs ){
-    sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- ""; })
-    sapply( 1:length( sim@draws_refs ), function( .index ){ sim@draws_refs[[ .index ]][[1]]@dir <<- ""; }) #' assuming only one draw
-    sapply( 1:length( sim@output_refs ), function( .index.i ){ num_output_refs <- length( sim@output_refs[[ .index.i ]] );
-    sapply( 1:num_output_refs, function( .index.j ){ sim@output_refs[[ .index.i ]][[ .index.j ]]@dir <<- "";})}) 
-  }
-  #' ------------------------------------------------------------------------ #
-  #' -------------------------- junk code below ----------------------------- #
-  
-  #' muh_evals <- evals( sim2 ) %>% 
-  #'   subset_evals( method_names = useful_methods,
-  #'                 metric_names = c("coverage", "power_p_value", "power_ci", "power_rerand" ) )
-  #' 
-  #' #' load in the models, draws, and output.
-  #' muh_models <- load( sim2@model_refs )
-  #' # muh_draws <- load( sim@draws_refs )
-  #' muh_evals <- load_evals_from_ref( sim@evals_refs )
-  #' df_evals <- as.data.frame( muh_evals )
-  #' 
-  #' muh_metrics <- apply( df_evals[,c("coverage", "power_p_value", "power_ci", "bias", "mse")], 2, mean )
-  #' 
-  #' muh_evals_new <- evaluate(object = muh_output, metrics = list(coverage, power_p_value, power_ci ))
-}
-
 
 
