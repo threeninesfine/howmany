@@ -1,7 +1,7 @@
 ## @knitr evaluate_simulation
 ## author             = Michael Flanagin
 ## date started       = 6 Jun 2018
-## date last modified = 6 Jun 2018
+## date last modified = 19 Jun 2018
 ## advisor            = Amalia Magaret
 ## objective          = Evaluate generated simulation
 
@@ -13,10 +13,13 @@ library("simulator")
 load_sim_from_file = FALSE
 write_evals = TRUE
 write_output = TRUE
-resultsdir_path <- "~/Downloads/MSThesis/expanded_datasets/sim-study/results/" 
-output_dir = "./results/"
-metrics_file_name = "metrics-simulation.csv"
 
+# dir( resfiles );
+# c("contY-binX-big", "howmany-binY-binX", "sim-alloc-contY-binX", "sim-study")
+resfiles <- "~/Downloads/MSThesis/expanded_datasets/"
+resultsdir_path <- "~/Downloads/MSThesis/expanded_datasets/sim-alloc-contY-binX/results/"
+output_dir = "./results/"
+metricfile_name <- paste0(output_dir,"metrics-simulation.csv");
 #' -------------------------------------------------------------------------- #
 #'         [ Chapter 1: How to view simulation objects from stored Rdata ]
 #' -------------------------------------------------------------------------- #
@@ -54,7 +57,7 @@ if( load_sim_from_file ){
 }
 
 
-for( sim_j in 1:4 ){
+for( sim_j in indices_with_data ){
   cat(paste0("[ model ", sim_j, " ][-|       ] Loading output from simulation model [ ", sim_j, " ]...\n")); ptm.all <- proc.time();
   muh_output <- output( sim )[[ sim_j ]]
   output_method_names <- sapply( muh_output, function( .object ){ .object@method_name })
@@ -99,11 +102,11 @@ for( sim_j in 1:4 ){
     metrics_by_dfs[[i]] <- apply( dfs[[i]][, c("adjusted","rerandomized","power.pvalue", "power.rerand","power.ci", "coverage", "bias")], 2, mean)
   }
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-      
+  
   cat("[ model ", sim_j, " ][-----|   ] Combining Output data.frames for saving...\n"); ptm <- proc.time();
   output_df <- dfs[[1]];
   for( i in 2:length( dfs )){
-    output_df <- merge(dfs_all, dfs[[i]], all = TRUE);
+    output_df <- merge(output_df, dfs[[i]], all = TRUE);
   }
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   
@@ -123,14 +126,16 @@ for( sim_j in 1:4 ){
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   }
   
-  metricfile_name <- paste0(output_dir,"metrics_", id_sim, ".csv");
+
   cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
   if( write_evals ){
     if(!file.exists( metricfile_name )){
       cat(paste0("\nNOTE: file: ", metricfile_name, " does not exist. \nCreating file and saving...\n"))
       write.csv( metrics_df_with_id, file = metricfile_name, row.names = FALSE )
     }else{
-      cat("ERROR: File exists! Not writing metrics...\n")
+      cat(paste0("Appending metrics to file ", metricfile_name, "...\n"))
+      write.table( metrics_df_with_id, file = "", sep = ",", append = TRUE, quote = FALSE,
+                      col.names = FALSE, row.names = FALSE)
     }
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   }
