@@ -240,7 +240,8 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
                                               adjusted = adjusted,
                                               rerandomized = FALSE,
                                               cilower = wald_type_confints["cilower"],
-                                              ciupper = wald_type_confints["ciupper"]))}))
+                                              ciupper = wald_type_confints["ciupper"],
+                                              num_rerandomizations = 0))}))
   }else{
     return(new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
                                 label = paste0("estimate regression model treatment effect, ",
@@ -256,7 +257,8 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
                                                adjusted = adjusted,
                                                rerandomized = FALSE,
                                                cilower = wald_type_confints["cilower"],
-                                               ciupper = wald_type_confints["ciupper"]))}))
+                                               ciupper = wald_type_confints["ciupper"],
+                                               num_rerandomizations = 0))}))
   }
 }
 
