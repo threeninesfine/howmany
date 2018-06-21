@@ -15,9 +15,10 @@ write_evals = TRUE
 write_output = TRUE
 
 # dir( resfiles );
-# c("contY-binX-big", "howmany-binY-binX", "sim-alloc-contY-binX", "sim-study")
-resfiles <- "~/Downloads/MSThesis/expanded_datasets/"
-resultsdir_path <- "~/Downloads/MSThesis/expanded_datasets/sim-alloc-contY-binX/results/"
+
+datasets <- c("contY-binX-big", "howmany-binY-binX", "sim-alloc-contY-binX", "sim-study")
+base_dir <- "~/Downloads/MSThesis/expanded_datasets/"
+resultsdir_path <- paste0( base_dir, datasets[ 1 ]) "~/Downloads/MSThesis/expanded_datasets/sim-alloc-contY-binX/results/"
 output_dir = "./results/"
 metricfile_name <- paste0(output_dir,"metrics-simulation.csv");
 #' -------------------------------------------------------------------------- #
@@ -134,7 +135,7 @@ for( sim_j in indices_with_data ){
       write.csv( metrics_df_with_id, file = metricfile_name, row.names = FALSE )
     }else{
       cat(paste0("Appending metrics to file ", metricfile_name, "...\n"))
-      write.table( metrics_df_with_id, file = "", sep = ",", append = TRUE, quote = FALSE,
+      write.table( metrics_df_with_id, file = metricfile_name, sep = ",", append = TRUE, quote = FALSE,
                       col.names = FALSE, row.names = FALSE)
     }
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
