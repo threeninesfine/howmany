@@ -1,5 +1,5 @@
-"trial_size","outcome_type","outcome_marginal_prevalence","prognostic_factor_number","prognostic_factor_type","prognostic_factor_prevalence","bT","bZ","num_rerandomizations","alpha","prognostic_factor_effect_size","treatment_assignment_effect_size","entry_time_effect_size","allocation_ratio","adjusted","rerandomized","power.pvalue","power.rerand","coverage","bias"
-96,"continuous",0.5,2,"binary",0.5,0,2,500,0.05,3,3,1,0.5,1,1,1,1,0,0.0011485171949671
-96,"continuous",0.5,2,"binary",0.5,0,2,500,0.05,3,3,1,0.5,1,0,1,0,0.945525291828794,0.0011485171949671
-96,"continuous",0.5,2,"binary",0.5,0,2,500,0.05,3,3,1,0.5,0,1,1,1,0,0.000683705891847374
-96,"continuous",0.5,2,"binary",0.5,0,2,500,0.05,3,3,1,0.5,0,0,1,0,0.998802753666567,0.000683705891847374
+"trial_size","outcome_type","outcome_marginal_prevalence","prognostic_factor_number","prognostic_factor_type","prognostic_factor_prevalence","bT","bZ","num_rerandomizations","alpha","prognostic_factor_effect_size","treatment_assignment_effect_size","entry_time_effect_size","allocation_ratio","adjusted","rerandomized","power.pvalue","power.rerand","power.ci","coverage","bias"
+96,"continuous",0.5,2,"binary",0.5,0,2,500,0.05,3,3,1,0.5,1,1,0.999700688416642,0.999800458944428,0,0,-0.000217866114297708
+96,"continuous",0.5,2,"binary",0.5,0,2,500,0.05,3,3,1,0.5,1,0,0.999900229472214,0,0.999900229472214,0.938341813828195,-0.000217866114297708
+96,continuous,0.5,2,binary,0.5,0,2,500,0.05,3,3,1,0.5,1,1,1,1,0,0,0.0011485171949671
+96,continuous,0.5,2,binary,0.5,0,2,500,0.05,3,3,1,0.5,1,0,1,0,1,0.945525291828794,0.0011485171949671

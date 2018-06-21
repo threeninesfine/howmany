@@ -18,7 +18,7 @@ write_output = TRUE
 
 datasets <- c("contY-binX-big", "howmany-binY-binX", "sim-alloc-contY-binX", "sim-study")
 base_dir <- "~/Downloads/MSThesis/expanded_datasets/"
-resultsdir_path <- paste0( base_dir, datasets[ 1 ]) "~/Downloads/MSThesis/expanded_datasets/sim-alloc-contY-binX/results/"
+resultsdir_path <- paste0( base_dir, datasets[ 1 ], "/results/")
 output_dir = "./results/"
 metricfile_name <- paste0(output_dir,"metrics-simulation.csv");
 #' -------------------------------------------------------------------------- #
