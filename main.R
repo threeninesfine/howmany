@@ -41,7 +41,7 @@ allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
 estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, unadjusted) ]
 estimate_rerandomized_errors <- TRUE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
 evaluate_metrics <- FALSE #' [ Phase 5: evaluate metrics on output (TODO: don't run on 'alloc methods')]
-unadjusted_analyses <- FALSE #' [ (Phases 3,4) for now, ignore unadjusted analyses (TODO: complete!) ]
+unadjusted_analyses <- TRUE #' [ (Phases 3,4) for now, ignore unadjusted analyses (TODO: complete!) ]
 analyze_results <- FALSE #' [ Phase 6: analyze results (tables and figures) ]
 followup_analysis <- FALSE #' [ Phase 7: add more detail to simulation ]
 
@@ -130,7 +130,7 @@ if( generate_model ){
   params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ unlist( .model@params[c(1:6, 11:16)] ) })))
   
   #' [ Subset models to scenarios of interest ]
-  model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size %in% c(1,3) &
+  model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size %in% 1 &
                                                                prognostic_factor_effect_size %in% c(1,3) &
                                                                entry_time_effect_size == c(1,3) &
                                                                prognostic_factor_number == 2 &
@@ -138,42 +138,55 @@ if( generate_model ){
                                                                trial_size %in% c(32,64,96) &
                                                                outcome_marginal_prevalence == 0.5 ))
   
-  simulation <- subset_simulation( sim, subset = model_indexes_of_interest[1] )
+  simulation <- subset_simulation( sim, subset = model_indexes_of_interest )
 }
 
 if( draw_from_model ){
+  cat(paste0("[ 1 ] Drawing from simulation model...\n")); ptm <- proc.time();
+  
   simulation <- simulate_from_model(object = simulation,
                                     nsim = num_simulations_per_core,
                                     index = 1:num_cores_parallel,
                                     parallel = list(socket_names = num_cores_parallel))
+  cat(paste0("Success! \nElapsed time (draw from model): \n")); print( proc.time() - ptm );
 }
 
 # --------------------------------------------------------------------------- #
 #' -------- [ Phase 2: simulate outcomes and allocate tx groups ] ----------- #
 # --------------------------------------------------------------------------- #
 if( allocate_groups ){ 
+  cat(paste0("[ 2 ] Allocating groups...\n")); ptm <- proc.time();
+  
   simulation <- run_method(object = simulation,
                            methods = list( SR, SBR, CAA_deterministic, CAA_probabilistic),
                            parallel = list( socket_names = num_cores_parallel ))
+  
+  cat(paste0("Success! \nElapsed time (allocate groups): \n")); print( proc.time() - ptm );
+  
 }
 
 # --------------------------------------------------------------------------- #
 #' -------- [ Phase 3: estimate tx effects (adjusted, unadjusted) ] --------- #
 # --------------------------------------------------------------------------- #
 if( estimate_effects ){
+  cat(paste0("[ 3a ] Estimating adjusted treatment effects...\n")); ptm <- proc.time();
   simulation <- run_method(object = simulation,
                            methods = list( SR + adjusted_ests,
                                            SBR + adjusted_ests,
                                            CAA_deterministic + adjusted_ests,
                                            CAA_probabilistic + adjusted_ests),
                            parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (estimate adjusted effects): \n")); print( proc.time() - ptm );
   if( unadjusted_analyses ){
+    cat(paste0("[ 3b ] Estimating UNadjusted treatment effects...\n")); ptm <- proc.time();
     simulation <- run_method(object = simulation,
                              methods = list( SR + unadjusted_ests,
                                              SBR + unadjusted_ests,
                                              CAA_deterministic + unadjusted_ests,
                                              CAA_probabilistic + unadjusted_ests),
                              parallel = list( socket_names = num_cores_parallel ))
+    cat(paste0("Success! \nElapsed time (estimate UNadjusted effects): \n")); print( proc.time() - ptm );
+    
   }
 }
 
@@ -181,15 +194,20 @@ if( estimate_effects ){
 #' ---- [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ] ---- #
 # --------------------------------------------------------------------------- #
 if( estimate_rerandomized_errors ){
+  cat(paste0("[ 4a ] Estimating adjusted treatment effect errors by rerandomization...\n")); ptm <- proc.time();
   simulation <- run_method(object = simulation,
                            methods = list( CAA_deterministic + adjusted_ests_rerandomized,
                                            CAA_probabilistic + adjusted_ests_rerandomized ),
                            parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (estimate adjusted effects, rerandomized): \n")); print( proc.time() - ptm );
   if( unadjusted_analyses ){
+    cat(paste0("[ 4b ] Estimating adjusted treatment effect errors by rerandomization...\n")); ptm <- proc.time();
     simulation <- run_method(object = simulation,
                              methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
                                              CAA_probabilistic + unadjusted_ests_rerandomized ),
                              parallel = list( socket_names = num_cores_parallel ))
+    cat(paste0("Success! \nElapsed time (estimate UNadjusted effects, rerandomized): \n")); print( proc.time() - ptm );
+    
   }
 }
 
