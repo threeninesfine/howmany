@@ -18,16 +18,16 @@ write_output = TRUE
 
 datasets <- c("contY-binX-big", "howmany-binY-binX", "sim-alloc-contY-binX", "sim-study")
 base_dir <- "~/Downloads/MSThesis/expanded_datasets/"
-resultsdir_path <- paste0( base_dir, datasets[ 1 ], "/results/")
+resultsdir_path <- paste0( base_dir, datasets[ 2 ], "/results/")
 output_dir = "./results/"
 metricfile_name <- paste0(output_dir,"metrics-simulation.csv");
 #' -------------------------------------------------------------------------- #
 #'         [ Chapter 1: How to view simulation objects from stored Rdata ]
 #' -------------------------------------------------------------------------- #
 if( load_sim_from_file ){
-  sim <- get_simulation_with_all_files(dir = resultsdir_path )
-  sim_contents <- get_contents( dir = resultsdir_path ) #' [ Evaluate contents (get model, draw, output, evaluation info) ] 
-
+  sim <- get_simulation_with_all_files(dir = output_dir )
+  sim_contents <- get_contents( dir = output_dir ) #' [ Evaluate contents (get model, draw, output, evaluation info) ] 
+  
   #' [ Find models that have draws, output, and/or evaluations ]
   sim_draw_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$draws) )
   sim_out_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$out) )
@@ -43,18 +43,18 @@ if( load_sim_from_file ){
   sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- sim@dir; })
   sim_models <- load( sim@model_refs )
   sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- ""; })
-  params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ .model@params[c(1:6, 11:16)]  })))
+  params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ unlist( .model@params[c(1:6, 11:16)] ) })))
   
   #' [ Subset models to scenarios of interest ]
-  # model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size == 3 & 
-  #                                                              prognostic_factor_effect_size == 3 & 
-  #                                                              entry_time_effect_size == 1 &
-  #                                                              prognostic_factor_number == 2 & 
-  #                                                              prognostic_factor_prevalence == 0.5 &
-  #                                                              trial_size == 96 &
-  #                                                              outcome_marginal_prevalence == 0.5 ))
-  # 
-  # sim2 <- subset_simulation( sim, subset = model_indexes_of_interest )
+  model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size %in% c(1,3) &
+                                                               prognostic_factor_effect_size %in% c(1,3) &
+                                                               entry_time_effect_size == c(1,3) &
+                                                               prognostic_factor_number == 2 &
+                                                               prognostic_factor_prevalence == 0.5 &
+                                                               trial_size %in% c(32,64,96) &
+                                                               outcome_marginal_prevalence == 0.5 ))
+  
+  sim2 <- subset_simulation( sim, subset = model_indexes_of_interest )
 }
 
 
@@ -127,7 +127,7 @@ for( sim_j in indices_with_data ){
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   }
   
-
+  
   cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
   if( write_evals ){
     if(!file.exists( metricfile_name )){
@@ -136,7 +136,7 @@ for( sim_j in indices_with_data ){
     }else{
       cat(paste0("Appending metrics to file ", metricfile_name, "...\n"))
       write.table( metrics_df_with_id, file = metricfile_name, sep = ",", append = TRUE, quote = FALSE,
-                      col.names = FALSE, row.names = FALSE)
+                   col.names = FALSE, row.names = FALSE)
     }
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   }

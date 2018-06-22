@@ -28,18 +28,19 @@ sim_alpha = c( 0.05 )
 #' [ step 0: set file management ]
 simulation_name <- "alloc-model-AWS"
 results_directory <- "./results/"
-simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H:%M") #' [ timestamp ]
+simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M") #' [ timestamp ]
 num_cores_parallel <- max(1, parallel::detectCores() - 1); #' [ for parallel computing ]
-num_simulations <- 10000; #' [ simulations per design matrix (all cores!)]
+num_simulations <- 2000; #' [ simulations per design matrix (all cores!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
 num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
-generate_model <- TRUE #' [ Phase 1: define all models, simulate draws ]
+generate_model <- FALSE #' [ Phase 1: define all models ]
+draw_from_model <- TRUE #' [ Phase 1.5: simulate draws from models (created or loaded from saved state) ]
 allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
 estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, unadjusted) ]
-estimate_rerandomized_errors <- FALSE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
-evaluate_metrics <- TRUE #' [ Phase 5: evaluate metrics on output (TODO: don't run on 'alloc methods')]
+estimate_rerandomized_errors <- TRUE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
+evaluate_metrics <- FALSE #' [ Phase 5: evaluate metrics on output (TODO: don't run on 'alloc methods')]
 unadjusted_analyses <- FALSE #' [ (Phases 3,4) for now, ignore unadjusted analyses (TODO: complete!) ]
 analyze_results <- FALSE #' [ Phase 6: analyze results (tables and figures) ]
 followup_analysis <- FALSE #' [ Phase 7: add more detail to simulation ]
@@ -66,8 +67,8 @@ adjusted_ests_rerandomized <-   rerandomized_error_estimates( adjusted = TRUE,
                                                               num_rerandomizations = num_reallocations, 
                                                               return_extended_method = FALSE )
 unadjusted_ests_rerandomized <-   rerandomized_error_estimates( adjusted = FALSE, 
-                                                              num_rerandomizations = num_reallocations, 
-                                                              return_extended_method = FALSE )
+                                                                num_rerandomizations = num_reallocations, 
+                                                                return_extended_method = FALSE )
 
 # --------------------------------------------------------------------------- #
 #' ------------ [ III. Simulation design & evaluation ] --------------------- #
@@ -104,12 +105,47 @@ if( generate_model ){
                                   # "allocation_ratio",
                                   # "allocation_max_imbalance"
                                   #  "outcome_type"
-                   )) %>%
-    simulate_from_model(nsim = num_simulations_per_core,
-                        index = 1:num_cores_parallel,
-                        parallel = list(socket_names = num_cores_parallel))
+                   )) 
 }else{ #' [ if generate_model = FALSE, load in existing model ]
-  simulation <- load_simulation(name = simulation_name, dir = results_directory)
+  sim <- get_simulation_with_all_files(dir = results_directory ) %>% 
+    rename("sim-binY-binX-trial-one") %>% relabel(paste0("sim-binY-binX-trial-one-", simulation_timestamp ))
+  
+  sim_contents <- get_contents( dir = results_directory ) #' [ Evaluate contents (get model, draw, output, evaluation info) ] 
+  
+  #' [ Find models that have draws, output, and/or evaluations ]
+  sim_draw_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$draws) )
+  sim_out_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$out) )
+  sim_evals_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$evals) )
+  
+  #' [ Get model names with draws, evals, and output]
+  sims_with_output <- which( sim_out_length > 0 )
+  sims_with_draws <- which( sim_draw_length > 0 )
+  sims_with_evals <- which( sim_evals_length > 0 )
+  indices_with_data <- intersect( sims_with_evals, intersect( sims_with_output, sims_with_draws ))
+  
+  #' [ Get data frame of model parameters -- to easily locate model index corresp. to a particular configuration ]
+  sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- sim@dir; })
+  sim_models <- load( sim@model_refs )
+  sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- ""; })
+  params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ unlist( .model@params[c(1:6, 11:16)] ) })))
+  
+  #' [ Subset models to scenarios of interest ]
+  model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size %in% c(1,3) &
+                                                               prognostic_factor_effect_size %in% c(1,3) &
+                                                               entry_time_effect_size == c(1,3) &
+                                                               prognostic_factor_number == 2 &
+                                                               prognostic_factor_prevalence == 0.5 &
+                                                               trial_size %in% c(32,64,96) &
+                                                               outcome_marginal_prevalence == 0.5 ))
+  
+  simulation <- subset_simulation( sim, subset = model_indexes_of_interest[1] )
+}
+
+if( draw_from_model ){
+  simulation <- simulate_from_model(object = simulation,
+                                    nsim = num_simulations_per_core,
+                                    index = 1:num_cores_parallel,
+                                    parallel = list(socket_names = num_cores_parallel))
 }
 
 # --------------------------------------------------------------------------- #
@@ -156,7 +192,7 @@ if( estimate_rerandomized_errors ){
                              parallel = list( socket_names = num_cores_parallel ))
   }
 }
- 
+
 
 # --------------------------------------------------------------------------- #
 #' -------------- [ Phase 5: evaluate metrics on output ] ------------------- #
@@ -242,18 +278,18 @@ if( followup_analysis ){
   
   if( estimate_effects ){
     sim2 <- run_method(object = sim2,
-                             methods = list( SR + adjusted_ests,
-                                             SBR + adjusted_ests,
-                                             CAA_deterministic + adjusted_ests,
-                                             CAA_probabilistic + adjusted_ests),
-                             parallel = list( socket_names = num_cores_parallel ))
+                       methods = list( SR + adjusted_ests,
+                                       SBR + adjusted_ests,
+                                       CAA_deterministic + adjusted_ests,
+                                       CAA_probabilistic + adjusted_ests),
+                       parallel = list( socket_names = num_cores_parallel ))
     if( unadjusted_analyses ){
       sim2 <- run_method(object = sim2,
-                               methods = list( SR + unadjusted_ests,
-                                               SBR + unadjusted_ests,
-                                               CAA_deterministic + unadjusted_ests,
-                                               CAA_probabilistic + unadjusted_ests),
-                               parallel = list( socket_names = num_cores_parallel ))
+                         methods = list( SR + unadjusted_ests,
+                                         SBR + unadjusted_ests,
+                                         CAA_deterministic + unadjusted_ests,
+                                         CAA_probabilistic + unadjusted_ests),
+                         parallel = list( socket_names = num_cores_parallel ))
     }
   }
   
@@ -262,14 +298,14 @@ if( followup_analysis ){
   # --------------------------------------------------------------------------- #
   if( estimate_rerandomized_errors ){
     sim2 <- run_method(object = sim2,
-                             methods = list( CAA_deterministic + adjusted_ests_rerandomized,
-                                             CAA_probabilistic + adjusted_ests_rerandomized ),
-                             parallel = list( socket_names = num_cores_parallel ))
+                       methods = list( CAA_deterministic + adjusted_ests_rerandomized,
+                                       CAA_probabilistic + adjusted_ests_rerandomized ),
+                       parallel = list( socket_names = num_cores_parallel ))
     if( unadjusted_analyses ){
       sim2 <- run_method(object = sim2,
-                               methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
-                                               CAA_probabilistic + unadjusted_ests_rerandomized ),
-                               parallel = list( socket_names = num_cores_parallel ))
+                         methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
+                                         CAA_probabilistic + unadjusted_ests_rerandomized ),
+                         parallel = list( socket_names = num_cores_parallel ))
     }
   }
   
