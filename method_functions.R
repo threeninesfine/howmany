@@ -41,7 +41,7 @@ simulate_outcomes <- function( model, draw, Z ){
 #' [function 1: make_complete_randomization_with_outcomes()]
 make_complete_randomization_with_outcomes <- function( allocation_ratio = NULL, simulate_outcome = TRUE ){
   allocation_ratio <- ifelse(is.null( allocation_ratio ), 0.5, allocation_ratio ) #' [set allocation ratio to 0.5 if NULL]
-  new_method(name = sprintf("allocation_CR-alloc-ratio_%.2f", allocation_ratio ),
+  new_method(name = "CR",
              label = sprintf("Allocation - complete randomization - allocation ratio %.2f", allocation_ratio),
              settings = list( allocation_ratio = allocation_ratio ),
              method = function( model, draw, allocation_ratio, simulate_outcome = TRUE ){
@@ -63,7 +63,7 @@ make_stratified_block_randomization_with_outcomes <- function( block_size = NULL
                                                                simulate_outcome = TRUE ){
   #' [ Define method parameters: block_size, X_cutpoint ]
   #' block_size <- ifelse( is.null( block_size ), 8, block_size ) #' [ todo: extend this to specify custom block sizes]
-  new_method(name ="allocation_SBR-block-size_TBD",
+  new_method(name ="SBR",
              label = "Allocation - stratified block randomization - block size TBD",    
              # name = sprintf("allocation_SBR-block-size_%.0f", block_size),
              # label = sprintf("Allocation - stratified block randomization - block size %.0f", block_size),
@@ -72,6 +72,7 @@ make_stratified_block_randomization_with_outcomes <- function( block_size = NULL
                #' [ Redefine method parameters: block_size, X_cutpoint (just in case base_method is called from an extension)]
                block_size <- model$trial_size / ( 2 ^ model$prognostic_factor_number );
                X_cutpoint <- 0
+               .X <- matrix( draw$X[, 1:model$prognostic_factor_number] );
                #' [ Dichotomize prognostic variables by X_cutpoint ]
                if( model$prognostic_factor_type == "continuous" ){
                  .X <- draw$X[ ,1:model$prognostic_factor_number] >= X_cutpoint; 
@@ -108,7 +109,8 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
   allocation_max_imbalance <- ifelse(is.null( allocation_max_imbalance ), 2, allocation_max_imbalance )
   allocation_biasing_probability <- ifelse(is.null( allocation_biasing_probability ), 1.0, allocation_biasing_probability )
   
-  new_method(name = sprintf("allocation_CAA-max-imbalance_%.0f-pbiasedalloc_%.2f", allocation_max_imbalance, allocation_biasing_probability ),
+  new_method(name = "CAA",
+    # name = sprintf("CAA-max-imbalance_%.0f-pbiasedalloc_%.2f", allocation_max_imbalance, allocation_biasing_probability ),
              label = sprintf("Allocation - covariate adaptive allocation - max imbalance %.0f - allocation biasing probability %.2f", 
                              allocation_max_imbalance, allocation_biasing_probability ),
              settings = list( allocation_max_imbalance = allocation_max_imbalance,
@@ -127,11 +129,13 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
                
                #' [ Dichotomize prognostic variables by X_cutpoint ]
                if( model$prognostic_factor_type == "continuous" ){
-                 .X <- draw$X[ ,1:model$prognostic_factor_number] >= X_cutpoint; 
+                 .X <- draw$X[ ,1:model$prognostic_factor_number];
                  class( .X ) <- "numeric"
                }else{
                  .X <- draw$X[, 1:model$prognostic_factor_number];
                }
+               
+               
                strata_labels <- apply( .X, 1, FUN=function(.row){ paste0(.row, collapse="") } ); # get strata membership for each observation
                Z_CAR <- rep( NA, times = model$trial_size );
                names( Z_CAR ) <- strata_labels; # make allocation vector 'Z', name vector by stratum membership (e.g. "101")
@@ -225,7 +229,7 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
   adjusted <- ifelse(is.null( adjusted ), TRUE, adjusted ); #' [default is adjusted = TRUE]
   
   if( return_extended_method & !is.null( base_method )){ #' [ if passed base_method, return ExtendedMethod object ]
-    return(new_extended_method(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
+    return(new_extended_method(name = paste0("REG", ifelse( adjusted, "_ADJ", "_UN" )),
                                label = paste0("estimate regression model treatment effect, ",
                                               ifelse( adjusted, "adjusted ", "unadjusted "),
                                               "for prognostic factors"),
@@ -243,7 +247,7 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
                                               ciupper = wald_type_confints["ciupper"],
                                               num_rerandomizations = 0))}))
   }else{
-    return(new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests"),
+    return(new_method_extension(name = paste0("REG", ifelse( adjusted, "_ADJ", "_UN" )),
                                 label = paste0("estimate regression model treatment effect, ",
                                                ifelse( adjusted, "adjusted ", "unadjusted "),
                                                "for prognostic factors"),
@@ -288,10 +292,10 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
   if(is.null( adjusted )) adjusted = TRUE; #' [ TODO (lexical scope): is 'adjusted' defined when EM is added to Method? ]
   
   if( return_extended_method & !is.null( base_method )){
-    return(new_extended_method(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests-RERANDOMIZED-error-ests"),
-                         label = paste0("estimate regression model treatment effect, ",
+    return(new_extended_method(name = paste0("RERAND", ifelse( adjusted, "_ADJ", "_UN" )),
+                         label = paste0("estimate treatment effect, ",
                                         ifelse( adjusted, "adjusted ", "unadjusted "),
-                                        "for prognostic factors, RERANDOMIZED error estimates"),
+                                        "for prognostic factors, rerandomized"),
                          base_method = base_method,
                          extended_method = function( model, draw, out, base_method ){
                            #' [ step 1: estimate regression parameters from observed data (est, se, t, p)]
@@ -321,7 +325,7 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                                         ciupper = ci_rerand[2],
                                         num_rerandomizations = num_rerandomizations ))}))
   }else{
-    return(new_method_extension(name = paste0(ifelse( adjusted, "adjusted-", "unadjusted-" ), "regression-ests-RERANDOMIZED-error-ests"),
+    return(new_method_extension(name = paste0("RERAND", ifelse( adjusted, "_ADJ", "_UN" )),
                          label = paste0("estimate regression model treatment effect, ",
                                         ifelse( adjusted, "adjusted ", "unadjusted "),
                                         "for prognostic factors, RERANDOMIZED error estimates"),
