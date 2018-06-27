@@ -62,13 +62,16 @@ for( sim_j in indices_with_data ){
   cat(paste0("[ model ", sim_j, " ][-|       ] Loading output from simulation model [ ", sim_j, " ]...\n")); ptm.all <- proc.time();
   muh_output <- output( sim )[[ sim_j ]]
   output_method_names <- sapply( muh_output, function( .object ){ .object@method_name })
-  methods_of_interest <- c("adjusted-regression-ests", "adjusted-regression-ests-RERANDOMIZED-error-ests",
-                           "unadjusted-regression-ests", "unadjusted-regression-ests-RERANDOMIZED-error-ests")
-  output_indices_methods_of_interest <- which( output_method_names %in% methods_of_interest )
+  #' example data
+  # methods_of_interest <- c("CR_REG_UN", "SBR_REG_ADJ", "CAA_RERAND_ADJ")
+  foo.parsed <- t(sapply( strsplit( output_method_names, split = "_"), function(.listobj){unlist( .listobj )}))
+  rand.method <- foo.parsed[,1]
+  analysis.method <- foo.parsed[,2]
+  adjusted <- foo.parsed[,3]
+  
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm.all );
   cat(paste0("Simulation [ ", sim_j, " ] has these indexes of interest:\n"))
-  cat(paste0("Output index [", output_indices_methods_of_interest, "]: ", output_method_names[ output_indices_methods_of_interest ], "\n") );
-  
+
   cat("[ model ", sim_j, " ][--|      ] Changing proc_time values to elapsed_time (to allow making data.frames)...\n"); ptm <- proc.time();
   sapply( output_indices_methods_of_interest, function( out_i ){ 
     sapply( 1:length( muh_output[[ out_i ]]@out ), function( draw_j ){
@@ -117,7 +120,7 @@ for( sim_j in indices_with_data ){
   
   cat("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n")
   metrics_df <- do.call(rbind, metrics_by_dfs)
-  metrics_df_with_id <- cbind.data.frame( model( sim2 )@params[-index_exclude], metrics_df )
+  metrics_df_with_id <- cbind.data.frame( model( sim2 )@params[-index_exclude], metrics_df ) # TODO: add rand.method (e.g. "CR", "SBR", "CAA")
   cat("Success! \n")
   
   outfile_name <- paste0(output_dir,"output_", id_sim, ".csv");
