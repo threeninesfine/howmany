@@ -17,23 +17,23 @@ simulate_outcomes <- function( model, draw, Z ){
   expit <- function( .logodds ){ exp( .logodds ) / ( 1 + exp( .logodds )) }
   #' [intercept] Compute intercept such that marginal outcome prevalence is equal to 'outcome_marginal_prevalence'
   model_intercept <- 0;
-  if( model$outcome_type == "binary" ){
-    if( model$prognostic_factor_type == "binary" ){
+  if( model[["outcome_type"]] == "binary" ){
+    if( model[["prognostic_factor_type"]] == "binary" ){
       #' [assumption] X binary implies X ~ mult(n, p, 'prognostic_factor_number')
-      expected_value_X <- sapply( model$probsX, function(.probs){sum(.probs * 0:(length(.probs)-1))})
-      model_intercept <- logit( model$outcome_marginal_prevalence ) - sum( model$bX * expected_value_X, model$bZ * 1/2 )
+      expected_value_X <- sapply( model[["probsX"]], function(.probs){sum(.probs * 0:(length(.probs)-1))})
+      model_intercept <- logit( model[["outcome_marginal_prevalence"]] ) - sum( model[["bX"]] * expected_value_X, model[["bZ"]] * 1/2 )
     }else{
       #' [assumption] X continuous implies X ~ N(0,1)
-      model_intercept <- logit( outcome_marginal_prevalence ) - 1/2 * model$bZ
+      model_intercept <- logit( outcome_marginal_prevalence ) - 1/2 * model[["bZ"]]
     }
   }
-  linear_predictor <- model_intercept + draw$X %*% model$bX + Z * model$bZ + draw$Tobs * model$bT
+  linear_predictor <- model_intercept + draw$X %*% model[["bX"]] + Z * model[["bZ"]] + draw$Tobs * model[["bT"]]
   #' [Outcome (Y)] simulate by sampling from a multinomial or adding Gaussian noise.
-  Y <- rep( NA, times = model$trial_size );
-  if( model$outcome_type == "binary" ){ # sampling from Multinomial(n, p. numX)
+  Y <- rep( NA, times = model[["trial_size"]] );
+  if( model[["outcome_type"]] == "binary" ){ # sampling from Multinomial(n, p. numX)
     Y <- sapply(expit( linear_predictor ), function( .prob ){rbinom(n = length( .prob ), size = 1, prob = .prob )})
   }else{ # add Gaussian noise
-    Y <- linear_predictor + matrix(rnorm(n = model$trial_size, mean = 0, sd = 1), nrow = model$trial_size)
+    Y <- linear_predictor + matrix(rnorm(n = model[["trial_size"]], mean = 0, sd = 1), nrow = model[["trial_size"]])
   }
   return( Y = Y )
 } # returns outcomes (Y)
@@ -47,8 +47,8 @@ make_complete_randomization_with_outcomes <- function( allocation_ratio = NULL, 
              method = function( model, draw, allocation_ratio, simulate_outcome = TRUE ){
                #'[ Redefine method parameters: allocation_ratio (just in case base_method is called from an extension) ]
                # allocation_ratio <- ifelse(is.null( allocation_ratio ), 0.5, allocation_ratio) 
-               allocation_ratio <- model$allocation_ratio;
-               Z_complete_rand <- rbinom( n = model$trial_size, prob = allocation_ratio, size = 1 )
+               allocation_ratio <- model[["allocation_ratio"]];
+               Z_complete_rand <- rbinom( n = model[["trial_size"]], prob = allocation_ratio, size = 1 )
                if( simulate_outcome ){
                  Y <- simulate_outcomes( model, draw, Z = Z_complete_rand )
                  return(list( Y = Y, Z = Z_complete_rand ))
@@ -70,18 +70,17 @@ make_stratified_block_randomization_with_outcomes <- function( block_size = NULL
              # settings = list( block_size = block_size, X_cutpoint = X_cutpoint ),
              method = function( model, draw, block_size = NULL, simulate_outcome = TRUE ){
                #' [ Redefine method parameters: block_size, X_cutpoint (just in case base_method is called from an extension)]
-               block_size <- model$trial_size / ( 2 ^ model$prognostic_factor_number );
-               X_cutpoint <- 0
-               .X <- matrix( draw$X[, 1:model$prognostic_factor_number] );
+               block_size <- model[["trial_size"]] / ( 2 ^ model[["prognostic_factor_number"]] );
+               
                #' [ Dichotomize prognostic variables by X_cutpoint ]
-               if( model$prognostic_factor_type == "continuous" ){
-                 .X <- draw$X[ ,1:model$prognostic_factor_number] >= X_cutpoint; 
-                 class( .X ) <- "numeric"
-               }else{
-                 .X <- draw$X[, 1:model$prognostic_factor_number];
+               dichotomize <- function( x, x_cutpoint = 0 ) return( x >= x_cutpoint );
+               .X <- as.matrix( draw$X[, 1:model[["prognostic_factor_number"]]] );
+               if( model[["prognostic_factor_type"]] == "continuous" ){
+                 .X[] <- vapply( .X, dichotomize, numeric(1) )
                }
+               
                strata_labels <- apply( .X, 1, FUN=function(.row){ paste0(.row, collapse="") } );
-               Z_SBR <- rep( NA, times = model$trial_size );
+               Z_SBR <- rep( NA, times = model[["trial_size"]] );
                names( Z_SBR ) <- strata_labels # get strata labels for each observation
                strata_size <- table( strata_labels );  # get table of observed counts for each strata.
                num_randomized_blocks <- ceiling( strata_size / block_size );   # for each strata, get minimum number of blocks to allocate all subjects.
@@ -118,37 +117,34 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
              method = function( model, draw, allocation_max_imbalance = NULL, allocation_biasing_probability = NULL, simulate_outcome = TRUE ){
                #' [ Format method parameters: max_imbalance_vector, allocation_biasing_probability, X_cutpoint ]
                if(is.null( allocation_max_imbalance )){ #' [ case 1: default imbalance is 2 for all vars X,Z ]
-                 max_imbalance_vector <- rep( 2, model$prognostic_factor_number + 1 )
-               }else if(length( allocation_max_imbalance ) < model$prognostic_factor_number){ #' [case 2: if scalar, make vector]
-                 max_imbalance_vector <- rep( allocation_max_imbalance, model$prognostic_factor_number + 1 )
+                 max_imbalance_vector <- rep( 2, model[["prognostic_factor_number"]] + 1 )
+               }else if(length( allocation_max_imbalance ) < model[["prognostic_factor_number"]]){ #' [case 2: if scalar, make vector]
+                 max_imbalance_vector <- rep( allocation_max_imbalance, model[["prognostic_factor_number"]] + 1 )
                }else{ #' [case 3: OK!]
                  max_imbalance_vector <- allocation_max_imbalance
                }
                allocation_biasing_probability <- ifelse(is.null( allocation_biasing_probability ), 1.0, allocation_biasing_probability)
-               X_cutpoint <- 0
                
                #' [ Dichotomize prognostic variables by X_cutpoint ]
-               if( model$prognostic_factor_type == "continuous" ){
-                 .X <- draw$X[ ,1:model$prognostic_factor_number];
-                 class( .X ) <- "numeric"
-               }else{
-                 .X <- draw$X[, 1:model$prognostic_factor_number];
+               dichotomize <- function( x, x_cutpoint = 0 ) return( x >= x_cutpoint );
+               .X <- as.matrix( draw$X[, 1:model[["prognostic_factor_number"]]] );
+               if( model[["prognostic_factor_type"]] == "continuous" ){
+                 .X[] <- vapply( .X, dichotomize, numeric(1) )
                }
                
-               
                strata_labels <- apply( .X, 1, FUN=function(.row){ paste0(.row, collapse="") } ); # get strata membership for each observation
-               Z_CAR <- rep( NA, times = model$trial_size );
+               Z_CAR <- rep( NA, times = model[["trial_size"]] );
                names( Z_CAR ) <- strata_labels; # make allocation vector 'Z', name vector by stratum membership (e.g. "101")
-               names_observed_strata <- lapply( 1:model$prognostic_factor_number, function(.col){sort(unique( draw$X[, .col] ))} );
+               names_observed_strata <- lapply( 1:model[["prognostic_factor_number"]], function(.col){sort(unique( draw$X[, .col] ))} );
                levels_by_strata <- sapply( names_observed_strata, function(.listobj){length( .listobj )} );
                # '.alloc' tracks the history of covariate + treatment assignments i.e. the (X,Z) pairs 
                #   for sequential assessment of covariate imbalance across treatment groups.
                .alloc <- array(0, dim=c( 2, levels_by_strata ), dimnames=c(list(c("ctrl", "tx")), names_observed_strata))
                nforced <- 0;
-               for( subject_i in 1:model$trial_size ){ 
-                 covar_indices_subj_i <- sapply( 1:model$prognostic_factor_number, function(.j){
+               for( subject_i in 1:model[["trial_size"]] ){ 
+                 covar_indices_subj_i <- sapply( 1:model[["prognostic_factor_number"]], function(.j){
                    which( names_observed_strata[[ .j ]] == draw$X[subject_i, .j] )} );
-                 for( covar_j in 1:model$prognostic_factor_number ){ #' [ considering each covariate 'covar_j' in decreasing order of importance, ]
+                 for( covar_j in 1:model[["prognostic_factor_number"]] ){ #' [ considering each covariate 'covar_j' in decreasing order of importance, ]
                    tx_ctrl_counts_by_subj_i_covar_j <- apply(.alloc, c(1, (covar_j+1)), sum)[ , covar_indices_subj_i[covar_j]]; #' consider tx/control assignments for subject 'subject_i's observed covar_j
                    observed_tx_imbalance_subj_i_covar_j <- diff( tx_ctrl_counts_by_subj_i_covar_j ); #' [ evaluate potential imbalance := #"tx" - #"ctrl" ]
                    #' [ compare imbalance to a priori limits (specified by 'max_imbalance_vector') ]
@@ -165,8 +161,8 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
                    } # end if 'imbalance is greater than max allowed imbalance'
                  } # end for 'covar_j'
                  #' [if we reach the last (least important) X covar and haven't assigned Z yet,]
-                 if( covar_j == model$prognostic_factor_number && is.na( Z_CAR[ subject_i ] ) ){
-                   Z_CAR[ subject_i ] <- rbinom( n = 1, size = 1, prob = model$allocation_ratio ); #' [ randomize to treatment and control with probability 'allocation_ratio' ]
+                 if( covar_j == model[["prognostic_factor_number"]] && is.na( Z_CAR[ subject_i ] ) ){
+                   Z_CAR[ subject_i ] <- rbinom( n = 1, size = 1, prob = model[["allocation_ratio"]] ); #' [ randomize to treatment and control with probability 'allocation_ratio' ]
                    index_new_allocation <- rbind(c( Z_CAR[ subject_i ] + 1, covar_indices_subj_i )); #' update allocation matrix with new assignment.
                    .alloc[ index_new_allocation ] <- .alloc[ index_new_allocation ] + 1;
                  } # end if 'no imbalance passes max imbalance' 
@@ -194,7 +190,7 @@ compute_regression_estimates <- function( model, draw, out, adjusted ){
     fitted_model <- update( fitted_model, ~. + draw$X )
   }
   #' [2] fit (generalized) linear model
-  if( model$outcome_type == "binary" ){
+  if( model[["outcome_type"]] == "binary" ){
     fitted_model_ests <- summary(glm(formula = fitted_model,
                                      family = quasibinomial(link="logit")))$coef[2,];
   }else{
@@ -236,15 +232,15 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
                                base_method = base_method,
                                extended_method = function( model, draw, out, base_method ){
                                  fitted_model <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
-                                 wald_type_confints <- make_ci( est = fitted_model["est"], se = fitted_model["se"], alpha = model$alpha );
+                                 wald_type_confints <- make_ci( est = fitted_model[["est"]], se = fitted_model[["se"]], alpha = model[["alpha"]] );
                                  return(list( est = fitted_model["est"],
                                               se = fitted_model["se"],
                                               t = fitted_model["t"],
                                               p = fitted_model["p"],
                                               adjusted = adjusted,
                                               rerandomized = FALSE,
-                                              cilower = wald_type_confints["cilower"],
-                                              ciupper = wald_type_confints["ciupper"],
+                                              cilower = wald_type_confints[["cilower"]],
+                                              ciupper = wald_type_confints[["ciupper"]],
                                               num_rerandomizations = 0))}))
   }else{
     return(new_method_extension(name = paste0("REG", ifelse( adjusted, "_ADJ", "_UN" )),
@@ -253,15 +249,15 @@ estimate_regression_parameters <- function( base_method = NULL, adjusted = NULL,
                                                "for prognostic factors"),
                                 method_extension = function( model, draw, out, base_method ){
                                   fitted_model <- compute_regression_estimates( model = model, draw = draw, out = out, adjusted = adjusted )
-                                  wald_type_confints <- make_ci( est = fitted_model["est"], se = fitted_model["se"], alpha = model$alpha );
-                                  return(list( est = fitted_model["est"],
-                                               se = fitted_model["se"],
-                                               t = fitted_model["t"],
-                                               p = fitted_model["p"],
+                                  wald_type_confints <- make_ci( est = fitted_model[["est"]], se = fitted_model[["se"]], alpha = model[["alpha"]] );
+                                  return(list( est = fitted_model[["est"]],
+                                               se = fitted_model[["se"]],
+                                               t = fitted_model[["t"]],
+                                               p = fitted_model[["p"]],
                                                adjusted = adjusted,
                                                rerandomized = FALSE,
-                                               cilower = wald_type_confints["cilower"],
-                                               ciupper = wald_type_confints["ciupper"],
+                                               cilower = wald_type_confints[["cilower"]],
+                                               ciupper = wald_type_confints[["ciupper"]],
                                                num_rerandomizations = 0))}))
   }
 }
@@ -314,10 +310,10 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                            #' [ TODO: (p-value Q): how many re-randomized allocations have a more extreme outcome than what was observed? ]
                            p_rerand <- mean(abs( model_ests_rerand[,"t"] ) >= abs( model_ests_observed["t"] )) #' [ by (a) |t_rerand| >= |t_obs| vs. (b) p_rerand <  p_obs ]
                            
-                           ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model$alpha/2, 1 - model$alpha/2 ))
-                           return(list( est = model_ests_observed["est"],
+                           ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model[["alpha"]]/2, 1 - model[["alpha"]]/2 ))
+                           return(list( est = model_ests_observed[["est"]],
                                         se = se_rerand,
-                                        t = model_ests_observed["t"],
+                                        t = model_ests_observed[["t"]],
                                         p = p_rerand,
                                         adjusted = adjusted,
                                         rerandomized = TRUE,
@@ -355,10 +351,10 @@ rerandomized_error_estimates <- function( base_method = NULL, adjusted = NULL, n
                            se_rerand <- sd( model_ests_rerand[,"est"], na.rm = TRUE)
                            #' [ TODO: (p-value Q): how many re-randomized allocations have a more extreme outcome than what was observed? ]
                            p_rerand <- mean(abs( model_ests_rerand[,"t"] ) >= abs( model_ests_observed["t"] )) #' [ by (a) |t_rerand| >= |t_obs| vs. (b) p_rerand <  p_obs ]
-                           ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model$alpha/2, 1 - model$alpha/2 ))
-                           return(list( est = model_ests_observed["est"],
+                           ci_rerand <- quantile( model_ests_rerand[,"est"], probs = c( model[["alpha"]]/2, 1 - model[["alpha"]]/2 ))
+                           return(list( est = model_ests_observed[["est"]],
                                         se = se_rerand,
-                                        t = model_ests_observed["t"],
+                                        t = model_ests_observed[["t"]],
                                         p = p_rerand,
                                         adjusted = adjusted,
                                         rerandomized = TRUE,
