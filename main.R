@@ -9,8 +9,8 @@ library("simulator") # this file was created under simulator version 0.2.0
 # --------------------------------------------------------------------------- #
 #' ------------------------ [ 0. Conditions ] ------------------------------- #
 # --------------------------------------------------------------------------- #
-sim_trial_size = list( 32, 64, 96 )
-sim_outcome_type = c( "continuous" )
+sim_trial_size = list( 32, 96 )
+sim_outcome_type = c( "binary" )
 sim_outcome_marginal_prevalence = c( 0.50 ) #' doesn't matter when Y continuous
 sim_prognostic_factor_type = c( "binary" ) # c("continuous", "binary"),
 sim_prognostic_factor_prevalence = list( 0.25, 0.50 )
@@ -26,13 +26,13 @@ sim_alpha = c( 0.05 )
 #' -------------------------- [ I. Settings ] ------------------------------- #
 # --------------------------------------------------------------------------- #
 #' [ step 0: set file management ]
-simulation_name <- "alloc-model-AWS"
-results_directory <- "./results/"
+simulation_name <- "alloc-model-test"
+results_directory <- "./results-TEST/"
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M") #' [ timestamp ]
 num_cores_parallel <- max(1, parallel::detectCores() - 1); #' [ for parallel computing ]
-num_simulations <- 2000; #' [ simulations per design matrix (all cores!)]
+num_simulations <- 100; #' [ simulations per design matrix (all cores!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
-num_reallocations <- 500; #' [ rerandomized allocations per simulated trial ]
+num_reallocations <- 50; #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
 generate_model <- FALSE #' [ Phase 1: define all models ]
@@ -54,9 +54,9 @@ source("eval_functions.R")#' [ step 3: define your Metrics, evaluation measures 
 # --------------------------------------------------------------------------- #
 
 #' [ Step 1: define treatment allocation Methods ]
-SR <- make_complete_randomization_with_outcomes()
+CR <- make_complete_randomization_with_outcomes()
 SBR <- make_stratified_block_randomization_with_outcomes()
-CAA_deterministic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 1)
+# CAA_deterministic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 1)
 CAA_probabilistic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 0.7)
 
 #' [ Step 2b: define MethodExtensions to estimate tx effects ]
@@ -142,6 +142,11 @@ if( generate_model ){
 }
 
 if( draw_from_model ){
+  simsub <- subset_simulation( simulation, subset = 1 )
+  simsub <- simulate_from_model(object = simsub,
+                                    nsim = num_simulations_per_core,
+                                    index = 1:num_cores_parallel,
+                                    parallel = list(socket_names = num_cores_parallel))
   simulation <- simulate_from_model(object = simulation,
                                     nsim = num_simulations_per_core,
                                     index = 1:num_cores_parallel,
@@ -152,8 +157,18 @@ if( draw_from_model ){
 #' -------- [ Phase 2: simulate outcomes and allocate tx groups ] ----------- #
 # --------------------------------------------------------------------------- #
 if( allocate_groups ){ 
+  simsub <- run_method(object = simsub,
+                       methods = SBR)
+  
+  simsub <- run_method(object = simsub,
+                           methods = list( CR, SBR, 
+                                           #                                           CAA_deterministic, 
+                                           CAA_probabilistic),
+                       parallel = list( socket_names = num_cores_parallel ))
   simulation <- run_method(object = simulation,
-                           methods = list( SR, SBR, CAA_deterministic, CAA_probabilistic),
+                           methods = list( CR, SBR, 
+                                           #                                           CAA_deterministic, 
+                                           CAA_probabilistic),
                            parallel = list( socket_names = num_cores_parallel ))
 }
 
@@ -162,16 +177,16 @@ if( allocate_groups ){
 # --------------------------------------------------------------------------- #
 if( estimate_effects ){
   simulation <- run_method(object = simulation,
-                           methods = list( SR + adjusted_ests,
+                           methods = list( CR + adjusted_ests,
                                            SBR + adjusted_ests,
-                                           CAA_deterministic + adjusted_ests,
+#                                           CAA_deterministic + adjusted_ests,
                                            CAA_probabilistic + adjusted_ests),
                            parallel = list( socket_names = num_cores_parallel ))
   if( unadjusted_analyses ){
     simulation <- run_method(object = simulation,
-                             methods = list( SR + unadjusted_ests,
+                             methods = list( CR + unadjusted_ests,
                                              SBR + unadjusted_ests,
-                                             CAA_deterministic + unadjusted_ests,
+#                                             CAA_deterministic + unadjusted_ests,
                                              CAA_probabilistic + unadjusted_ests),
                              parallel = list( socket_names = num_cores_parallel ))
   }
@@ -182,12 +197,14 @@ if( estimate_effects ){
 # --------------------------------------------------------------------------- #
 if( estimate_rerandomized_errors ){
   simulation <- run_method(object = simulation,
-                           methods = list( CAA_deterministic + adjusted_ests_rerandomized,
+                           methods = list( 
+#                             CAA_deterministic + adjusted_ests_rerandomized,
                                            CAA_probabilistic + adjusted_ests_rerandomized ),
                            parallel = list( socket_names = num_cores_parallel ))
   if( unadjusted_analyses ){
     simulation <- run_method(object = simulation,
-                             methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
+                             methods = list( 
+#                               CAA_deterministic + unadjusted_ests_rerandomized,
                                              CAA_probabilistic + unadjusted_ests_rerandomized ),
                              parallel = list( socket_names = num_cores_parallel ))
   }
@@ -245,75 +262,6 @@ if( analyze_results ){
                 se_format = "None",
                 output_type = "latex",
                 format_args = list(nsmall=3, digits=3))
-}
-
-
-# --------------------------------------------------------------------------- #
-#' -------- [ Phase 7: Repeat (specific) simulation conditions ] ------------ #
-# --------------------------------------------------------------------------- #
-
-if( followup_analysis ){
-  #' [ Get data frame of model parameters -- to easily locate model index corresp. to a particular configuration ]
-  muh_models <- load( simulation@model_refs )
-  params_by_model <- as.data.frame(t(sapply( muh_models, function( .model ){ .model@params[c(1:6, 11:16)]  })))
-  model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size == 3 & 
-                                                               prognostic_factor_effect_size == 3 & 
-                                                               entry_time_effect_size == 1 &
-                                                               prognostic_factor_number == 2 & 
-                                                               prognostic_factor_prevalence == 0.5 &
-                                                               trial_size == 96 &
-                                                               outcome_marginal_prevalence == 0.5 ))
-  
-  sim2 <- subset_simulation( sim, subset = model_indexes_of_interest )
-  sim2 <- simulate_from_model( sim2,
-                               nsim = num_simulations_per_core,
-                               index = 1:num_cores_parallel,
-                               parallel = list(socket_names = num_cores_parallel))
-  
-  
-  #' need to generate base_method() output first
-  sim2 <- run_method(object = sim2,
-                     methods = list( SR, SBR, CAA_deterministic, CAA_probabilistic),
-                     parallel = list( socket_names = num_cores_parallel ))
-  
-  if( estimate_effects ){
-    sim2 <- run_method(object = sim2,
-                       methods = list( SR + adjusted_ests,
-                                       SBR + adjusted_ests,
-                                       CAA_deterministic + adjusted_ests,
-                                       CAA_probabilistic + adjusted_ests),
-                       parallel = list( socket_names = num_cores_parallel ))
-    if( unadjusted_analyses ){
-      sim2 <- run_method(object = sim2,
-                         methods = list( SR + unadjusted_ests,
-                                         SBR + unadjusted_ests,
-                                         CAA_deterministic + unadjusted_ests,
-                                         CAA_probabilistic + unadjusted_ests),
-                         parallel = list( socket_names = num_cores_parallel ))
-    }
-  }
-  
-  # --------------------------------------------------------------------------- #
-  #' ---- [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ] ---- #
-  # --------------------------------------------------------------------------- #
-  if( estimate_rerandomized_errors ){
-    sim2 <- run_method(object = sim2,
-                       methods = list( CAA_deterministic + adjusted_ests_rerandomized,
-                                       CAA_probabilistic + adjusted_ests_rerandomized ),
-                       parallel = list( socket_names = num_cores_parallel ))
-    if( unadjusted_analyses ){
-      sim2 <- run_method(object = sim2,
-                         methods = list( CAA_deterministic + unadjusted_ests_rerandomized,
-                                         CAA_probabilistic + unadjusted_ests_rerandomized ),
-                         parallel = list( socket_names = num_cores_parallel ))
-    }
-  }
-  
-  sim2 <- evaluate(object = sim2,
-                   metrics = list( coverage,
-                                   power_p_value,
-                                   power_ci,
-                                   power_rerand ))
 }
 
 
