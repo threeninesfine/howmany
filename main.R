@@ -82,7 +82,7 @@ unadjusted_ests_rerandomized <-   rerandomized_error_estimates( adjusted = FALSE
 # --------------------------------------------------------------------------- #
 if( generate_model ){ 
   simulation <- new_simulation(name = simulation_name,
-                               label = "Randomization-allocation-methods-model",
+                               label = paste0("Simulation run at ", simulation_timestamp),
                                dir = results_directory) %>%
     generate_model(make_trial_allocation_model,
                    trial_size = sim_trial_size,
@@ -109,39 +109,6 @@ if( generate_model ){
                                   # "allocation_max_imbalance"
                                   #  "outcome_type"
                    )) 
-}else{ #' [ if generate_model = FALSE, load in existing model ]
-  sim <- get_simulation_with_all_files(dir = results_directory ) %>% 
-    rename("sim-binY-binX-trial-one") %>% relabel(paste0("sim-binY-binX-trial-one-", simulation_timestamp ))
-  
-  sim_contents <- get_contents( dir = results_directory ) #' [ Evaluate contents (get model, draw, output, evaluation info) ] 
-  
-  #' [ Find models that have draws, output, and/or evaluations ]
-  sim_draw_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$draws) )
-  sim_out_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$out) )
-  sim_evals_length <- sapply( sim_contents$objects, function( .obj ) length(.obj$evals) )
-  
-  #' [ Get model names with draws, evals, and output]
-  sims_with_output <- which( sim_out_length > 0 )
-  sims_with_draws <- which( sim_draw_length > 0 )
-  sims_with_evals <- which( sim_evals_length > 0 )
-  indices_with_data <- intersect( sims_with_evals, intersect( sims_with_output, sims_with_draws ))
-  
-  #' [ Get data frame of model parameters -- to easily locate model index corresp. to a particular configuration ]
-  sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- sim@dir; })
-  sim_models <- load( sim@model_refs )
-  sapply( 1:length( sim@model_refs ), function( .index ){ sim@model_refs[[ .index ]]@dir <<- ""; })
-  params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ unlist( .model@params[c(1:6, 11:16)] ) })))
-  
-  #' [ Subset models to scenarios of interest ]
-  model_indexes_of_interest <- with( params_by_model, which( treatment_assignment_effect_size %in% 1 &
-                                                               prognostic_factor_effect_size %in% c(1,3) &
-                                                               entry_time_effect_size == c(1,3) &
-                                                               prognostic_factor_number == 2 &
-                                                               prognostic_factor_prevalence == 0.5 &
-                                                               trial_size %in% c(32,64,96) &
-                                                               outcome_marginal_prevalence == 0.5 ))
-  
-  simulation <- subset_simulation( simulation, subset = model_indexes_of_interest )
 }
 
 if( draw_from_model ){
