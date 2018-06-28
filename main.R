@@ -9,6 +9,16 @@ library("simulator") # this file was created under simulator version 0.2.0
 # --------------------------------------------------------------------------- #
 #' ------------------------ [ 0. Conditions ] ------------------------------- #
 # --------------------------------------------------------------------------- #
+#' [ step 0: set file management ]
+#' Batch 1 will have: outcome = "binary" & predictor = "binary"
+simulation_name <- "alloc-simulation-batch-1-of-4"
+#' Batch 2 will have: outcome = "binary" & predictor = "continuous"
+# simulation_name <- "alloc-simulation-batch-2-of-4"
+#' Batch 3 will have: outcome = "continuous" & predictor = "binary"
+# simulation_name <- "alloc-simulation-batch-3-of-4"
+#' Batch 4 will have: outcome = "continuous" & predictor = "continuous"
+# simulation_name <- "alloc-simulation-batch-4-of-4"
+
 sim_trial_size = list( 32, 96 )
 sim_outcome_type = c( "binary" )
 sim_outcome_marginal_prevalence = c( 0.50 ) #' doesn't matter when Y continuous
@@ -25,28 +35,26 @@ sim_alpha = c( 0.05 )
 # --------------------------------------------------------------------------- #
 #' -------------------------- [ I. Settings ] ------------------------------- #
 # --------------------------------------------------------------------------- #
-#' [ step 0: set file management ]
-simulation_name <- "alloc-model-1-of-4"
+
 #' [ 'results_directory' contains folder 'files' with .Rdata model, draw, output, evals ] 
-results_directory <- "./results-TEST/"
+results_directory <- "./results/"
 #' [ 'metricfile_name' contains model, draw, output, evaluation info ] 
 metricfile_name <- paste0( results_directory, "metrics-simulation.csv" ); 
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M") #' [ timestamp ]
-num_cores_parallel <- max(1, parallel::detectCores() - 1); #' [ for parallel computing ]
-num_simulations <- 100; #' [ simulations per design matrix (all cores!)]
+num_cores_parallel <- 1 # max(1, parallel::detectCores() - 1); #' TODO: revert this for parallel processing after testing
+num_simulations <- 10;  #' TODO: revert this! #' [ simulations per design matrix (all cores!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
-num_reallocations <- 50; #' [ rerandomized allocations per simulated trial ]
+num_reallocations <- 10; #' TODO: revert this! #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
-generate_model <- FALSE #' [ Phase 1: define all models ]
+generate_model <- TRUE #' [ Phase 1: define all models ]
 draw_from_model <- TRUE #' [ Phase 1.5: simulate draws from models (created or loaded from saved state) ]
 allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
-estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, unadjusted) ]
+estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, and potentially unadjusted) ]
+estimate_unadjusted_effects <- TRUE #' [ (Phases 3,4) estimate treatment effects (unadjusted)]
 estimate_rerandomized_errors <- TRUE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
 evaluate_metrics <- FALSE #' [ Phase 5: evaluate metrics on output (TODO: don't run on 'alloc methods')]
-unadjusted_analyses <- TRUE #' [ (Phases 3,4) for now, ignore unadjusted analyses (TODO: complete!) ]
-analyze_results <- FALSE #' [ Phase 6: analyze results (tables and figures) ]
-followup_analysis <- FALSE #' [ Phase 7: add more detail to simulation ]
+
 
 source("model_functions.R") #' [ step 1: define your Model, its parameters, and simulation function (produces 'draws') ]
 source("method_functions.R") #' [ step 2: define your Methods, data analysis approaches (produces 'out') ]
@@ -164,7 +172,7 @@ if( estimate_effects ){
   }, file = "/dev/null")
   cat(paste0("Success! \nElapsed time (estimate adjusted effects, covariate adaptive allocation): \n")); print( proc.time() - ptm );
   
-  if( unadjusted_analyses ){
+  if( estimate_unadjusted_effects ){
     cat(paste0("[ 3b ] Estimating unadjusted treatment effects (complete randomization)...\n")); ptm <- proc.time();
     capture.output({
       simulation <- run_method(object = simulation, methods = CR + unadjusted_ests, parallel = list( socket_names = num_cores_parallel ))
@@ -194,7 +202,7 @@ if( estimate_rerandomized_errors ){
                              parallel = list( socket_names = num_cores_parallel ))
   }, file = "/dev/null")
   cat(paste0("Success! \nElapsed time (estimate adjusted effects for CAA, rerandomized): \n")); print( proc.time() - ptm );
-  if( unadjusted_analyses ){
+  if( estimate_unadjusted_effects ){
     cat(paste0("[ 4b ] Estimating adjusted treatment effect errors (for CAA only) by rerandomization...\n")); ptm <- proc.time();
     capture.output({
       simulation <- run_method(object = simulation,
@@ -208,62 +216,63 @@ if( estimate_rerandomized_errors ){
 # --------------------------------------------------------------------------- #
 #' ----------- [ Phase 5: Evaluate metrics & stash results ] ---------------- #
 # --------------------------------------------------------------------------- #
-for( sim_j in 1:length(model( simulation )) ){
-  cat(paste0("[ Output ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
-  output_j <- output( simulation )[[ sim_j ]] #' Model sim_j, 
-  output_method_names <- sapply( output_j, function( .object ){ .object@method_name })
-  methods_to_exclude <- c("CR", "SBR", "CAA");  #' exclude output from list that only contains allocation methods
-  index_output_methods_to_include <- which(!( output_method_names %in% methods_to_exclude ))
-  methods_included_parsed <- t(sapply( strsplit( output_method_names[ index_output_methods_to_include ], split = "_"), function(.listobj){unlist( .listobj )}))
-  dimnames( methods_included_parsed ) <- list( index_output_methods_to_include, c("alloc_method", "analysis_method", "adjustment"))
-  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm.all );
-  cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
-  print( methods_included_parsed )
-  
-  cat("[ model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n"); ptm <- proc.time();
-  dfs <- list();
-  for( i in 1:length( index_output_methods_to_include )){
-    out.index <- index_output_methods_to_include[ i ]
-    dfs[[ i ]]  <- data.frame(t(vapply( output_j[[ out.index ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
-    dimnames(dfs[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+if( evaluate_metrics ){
+  for( sim_j in 1:length(model( simulation )) ){
+    cat(paste0("[ Output ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+    output_j <- output( simulation )[[ sim_j ]] #' Model sim_j, 
+    output_method_names <- sapply( output_j, function( .object ){ .object@method_name })
+    methods_to_exclude <- c("CR", "SBR", "CAA");  #' exclude output from list that only contains allocation methods
+    index_output_methods_to_include <- which(!( output_method_names %in% methods_to_exclude ))
+    methods_included_parsed <- t(sapply( strsplit( output_method_names[ index_output_methods_to_include ], split = "_"), function(.listobj){unlist( .listobj )}))
+    dimnames( methods_included_parsed ) <- list( index_output_methods_to_include, c("alloc_method", "analysis_method", "adjustment"))
+    cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm.all );
+    cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
+    print( methods_included_parsed )
+    
+    cat("[ model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n"); ptm <- proc.time();
+    dfs <- list();
+    for( i in 1:length( index_output_methods_to_include )){
+      out.index <- index_output_methods_to_include[ i ]
+      dfs[[ i ]]  <- data.frame(t(vapply( output_j[[ out.index ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
+      dimnames(dfs[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+    }
+    cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+    
+    cat("[ model ", sim_j, " ][----|    ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"); ptm <- proc.time();
+    metrics_by_dfs <- list();
+    true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
+    for( i in 1:length( dfs )){
+      dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
+      dfs[[i]]$power.rerand <- with( dfs[[i]], est < cilower | est > ciupper ) 
+      dfs[[i]]$power.ci <- with( dfs[[i]], 0 < cilower | 0 > ciupper )
+      dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
+      dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
+      inds <- which( dimnames(dfs[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
+      metrics_by_dfs[[i]] <- colMeans(dfs[[i]][, inds])
+    }
+    cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+    
+    index_exclude <- which( sapply(model( simulation )[[ sim_j ]]@params, function(.x){length(unlist(.x)) > 1} )) # exclude non-scalars
+    id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
+    cat(paste0("Unique ID for simulation output file: ", id_sim, ".csv\n")); 
+    
+    cat("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n")
+    metrics_df <- do.call(rbind, metrics_by_dfs)
+    metrics_df_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[,"alloc_method"], metrics_df,
+                                            model( simulation )[[ sim_j ]]@params[-index_exclude]) 
+    cat("Success! \n")
+    
+    cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
+    if(!file.exists( metricfile_name )){
+      cat(paste0("\nNOTE: file: ", metricfile_name, " does not exist. \nCreating file and saving...\n"))
+      write.csv( metrics_df_with_id, file = metricfile_name, row.names = FALSE )
+    }else{
+      cat(paste0("Appending metrics to file ", metricfile_name, "...\n"))
+      write.table( metrics_df_with_id, file = metricfile_name, sep = ",", append = TRUE, quote = FALSE,
+                   col.names = FALSE, row.names = FALSE)
+    }
+    cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+    cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time:")); print( proc.time() - ptm.all );
   }
-  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-  
-  cat("[ model ", sim_j, " ][----|    ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"); ptm <- proc.time();
-  metrics_by_dfs <- list();
-  true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
-  for( i in 1:length( dfs )){
-    dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
-    dfs[[i]]$power.rerand <- with( dfs[[i]], est < cilower | est > ciupper ) 
-    dfs[[i]]$power.ci <- with( dfs[[i]], 0 < cilower | 0 > ciupper )
-    dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
-    dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
-    inds <- which( dimnames(dfs[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
-    metrics_by_dfs[[i]] <- colMeans(dfs[[i]][, inds])
-  }
-  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-  
-  index_exclude <- which( sapply(model( simulation )[[ sim_j ]]@params, function(.x){length(unlist(.x)) > 1} )) # exclude non-scalars
-  id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
-  cat(paste0("Unique ID for simulation output file: ", id_sim, ".csv\n")); 
-  
-  cat("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n")
-  metrics_df <- do.call(rbind, metrics_by_dfs)
-  metrics_df_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[,"alloc_method"], metrics_df,
-                                          model( simulation )[[ sim_j ]]@params[-index_exclude]) 
-  cat("Success! \n")
-  
-  cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
-  if(!file.exists( metricfile_name )){
-    cat(paste0("\nNOTE: file: ", metricfile_name, " does not exist. \nCreating file and saving...\n"))
-    write.csv( metrics_df_with_id, file = metricfile_name, row.names = FALSE )
-  }else{
-    cat(paste0("Appending metrics to file ", metricfile_name, "...\n"))
-    write.table( metrics_df_with_id, file = metricfile_name, sep = ",", append = TRUE, quote = FALSE,
-                 col.names = FALSE, row.names = FALSE)
-  }
-  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-  cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time:")); print( proc.time() - ptm.all );
 }
-
 
