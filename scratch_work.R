@@ -134,7 +134,7 @@ dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
 
 
 # --------------------------------------------------------------------------- #
-#' Problem 5: Checking new naming workflow using a subset of simulations
+#' Problem 6: Checking new naming workflow using a subset of simulations
 #' NOTE: assumed that 'simulation' object is already defined, as well as many variables from main.R 
 draw_from_model = TRUE
 allocate_groups = TRUE
@@ -212,11 +212,12 @@ if( estimate_rerandomized_errors ){
   }
 }
 
-bar <- data.frame( X = runif(32), Z = rnorm(n=32, sd=4) )  # example data
-bar$Y <- with( bar, X + Z + rnorm(n=32, sd=1) )  # Y = X + Z + Gaussian noise
-# fit_model() returns lm() object for downstream use
-fit_model <- function( predictor_variable ){  
-  lm( Y ~ predictor_variable, data = bar )
-}
 
-fit_model( bar$Z )
+
+# --------------------------------------------------------------------------- #
+#' Problem 7: Suppressing output in R
+# ref: https://stackoverflow.com/questions/2723034/suppress-one-commands-output-in-r
+capture.output({ print("foo") }, file = "/dev/null")
+
+
+
