@@ -72,15 +72,15 @@ make_stratified_block_randomization_with_outcomes <- function( block_size = NULL
                dichotomize <- function( x, cutpoint = 0 ){ x >= cutpoint }
                #' [ Redefine method parameters: block_size, X_cutpoint (just in case base_method is called from an extension)]
                block_size <- model$trial_size / ( 2 ^ model$prognostic_factor_number );
-               .X <- matrix( draw$X[, 1:model$prognostic_factor_number] );
+               .X <- matrix( draw$X[, 1:model$prognostic_factor_number], ncol = model$prognostic_factor_number );
                #' [ Dichotomize prognostic variables by X_cutpoint ]
                if( model$prognostic_factor_type == "continuous" ){
                  .X[] <- vapply( .X, dichotomize, numeric(1) )
                }
                
                strata_labels <- apply( .X, 1, FUN=function(.row){ paste0(.row, collapse="") } );
-               Z_SBR <- rep( NA, times = model$trial_size );
-               names( Z_SBR ) <- strata_labels # get strata labels for each observation
+               Z_SBR <- rep( NA, times = model$trial_size )
+               names( Z_SBR ) <- strata_labels; # get strata labels for each observation
                strata_size <- table( strata_labels );  # get table of observed counts for each strata.
                num_randomized_blocks <- ceiling( strata_size / block_size );   # for each strata, get minimum number of blocks to allocate all subjects.
                for( strata.i in 1:length( strata_size ) ){
