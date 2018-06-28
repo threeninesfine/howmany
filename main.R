@@ -67,7 +67,6 @@ source("eval_functions.R")#' [ step 3: define your Metrics, evaluation measures 
 #' [ Step 1: define treatment allocation Methods ]
 CR <- make_complete_randomization_with_outcomes()
 SBR <- make_stratified_block_randomization_with_outcomes()
-# CAA_deterministic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 1)
 CAA_probabilistic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 0.7)
 
 #' [ Step 2b: define MethodExtensions to estimate tx effects ]
@@ -214,6 +213,23 @@ if( estimate_rerandomized_errors ){
 }
 
 # --------------------------------------------------------------------------- #
+#' --- [ Phase 4.5: evaluate deterministic covariate adaptive allocation ] -- #
+# --------------------------------------------------------------------------- #
+if( run_deterministic_CAA ){
+  CAA_deterministic <- make_covariate_adaptive_allocation_with_outcomes(allocation_biasing_probability = 1)
+  cat(paste0("[ 2 ] Allocating groups, by covariate adaptive allocation (CAA), DETERMINISTICALLY...\n")); ptm <- proc.time();
+  capture.output({
+    simulation <- run_method(object = simulation, methods = CAA_deterministic, parallel = list( socket_names = num_cores_parallel )) %>% 
+      run_method(methods = list( CAA_deterministic + adjusted_ests,
+                                   CAA_deterministic + unadjusted_ests,
+                                   CAA_deterministic + adjusted_ests_rerandomized,
+                                   CAA_deterministic + unadjusted_ests_rerandomized ), 
+                 parallel = list( socket_names = num_cores_parallel ))
+  }, file = "/dev/null")
+    cat(paste0("Success! \nElapsed time (allocate groups by CAA, DETERMINISTICALLY...): \n")); print( proc.time() - ptm );
+}
+
+# --------------------------------------------------------------------------- #
 #' ----------- [ Phase 5: Evaluate metrics & stash results ] ---------------- #
 # --------------------------------------------------------------------------- #
 if( evaluate_metrics ){
@@ -229,7 +245,7 @@ if( evaluate_metrics ){
     cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
     print( methods_included_parsed )
     
-    cat("[ model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n"); ptm <- proc.time();
+    cat(paste0("[ model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
     dfs <- list();
     for( i in 1:length( index_output_methods_to_include )){
       out.index <- index_output_methods_to_include[ i ]
@@ -238,7 +254,7 @@ if( evaluate_metrics ){
     }
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
     
-    cat("[ model ", sim_j, " ][----|    ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"); ptm <- proc.time();
+    cat(paste0("[ model ", sim_j, " ][----|    ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n")); ptm <- proc.time();
     metrics_by_dfs <- list();
     true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
     for( i in 1:length( dfs )){
@@ -256,11 +272,11 @@ if( evaluate_metrics ){
     id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
     cat(paste0("Unique ID for simulation output file: ", id_sim, ".csv\n")); 
     
-    cat("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n")
+    cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n"))
     metrics_df <- do.call(rbind, metrics_by_dfs)
     metrics_df_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[,"alloc_method"], metrics_df,
                                             model( simulation )[[ sim_j ]]@params[-index_exclude]) 
-    cat("Success! \n")
+    cat("Success! \n\n")
     
     cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
     if(!file.exists( metricfile_name )){
@@ -272,7 +288,9 @@ if( evaluate_metrics ){
                    col.names = FALSE, row.names = FALSE)
     }
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-    cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time:")); print( proc.time() - ptm.all );
+    cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all );
+    cat("\n\n\n\n")
   }
 }
+
 
