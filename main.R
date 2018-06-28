@@ -53,8 +53,8 @@ allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
 estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, and potentially unadjusted) ]
 estimate_unadjusted_effects <- TRUE #' [ (Phases 3,4) estimate treatment effects (unadjusted)]
 estimate_rerandomized_errors <- TRUE #' [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ]
-evaluate_metrics <- FALSE #' [ Phase 5: evaluate metrics on output (TODO: don't run on 'alloc methods')]
-
+run_deterministic_CAA <- TRUE #' [ Phase 4.5: allocate tx groups by deterministic CAA (and do the other steps too) ]
+evaluate_metrics <- TRUE #' [ Phase 5: evaluate metrics on output (TODO: don't run on 'alloc methods')]
 
 source("model_functions.R") #' [ step 1: define your Model, its parameters, and simulation function (produces 'draws') ]
 source("method_functions.R") #' [ step 2: define your Methods, data analysis approaches (produces 'out') ]
@@ -233,10 +233,10 @@ if( run_deterministic_CAA ){
 # --------------------------------------------------------------------------- #
 if( evaluate_metrics ){
   for( sim_j in 1:length(model( simulation )) ){
-    cat(paste0("[ Output ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+    cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
     output_j <- output( simulation )[[ sim_j ]] #' Model sim_j, 
     output_method_names <- sapply( output_j, function( .object ){ .object@method_name })
-    methods_to_exclude <- c("CR", "SBR", "CAA");  #' exclude output from list that only contains allocation methods
+    methods_to_exclude <- c("CR", "SBR", "CAA", "CAA-MI-2-PBA-0.70", "CAA-MI-2-PBA-1.00");  #' exclude output from list that only contains allocation methods
     index_output_methods_to_include <- which(!( output_method_names %in% methods_to_exclude ))
     methods_included_parsed <- t(sapply( strsplit( output_method_names[ index_output_methods_to_include ], split = "_"), function(.listobj){unlist( .listobj )}))
     dimnames( methods_included_parsed ) <- list( index_output_methods_to_include, c("alloc_method", "analysis_method", "adjustment"))
