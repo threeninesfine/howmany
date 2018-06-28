@@ -138,20 +138,11 @@ if( generate_model ){
                                                                trial_size %in% c(32,64,96) &
                                                                outcome_marginal_prevalence == 0.5 ))
   
-  simulation <- subset_simulation( sim, subset = model_indexes_of_interest )
+  simulation <- subset_simulation( simulation, subset = model_indexes_of_interest )
 }
 
 if( draw_from_model ){
-<<<<<<< HEAD
-  simsub <- subset_simulation( simulation, subset = 1 )
-  simsub <- simulate_from_model(object = simsub,
-                                    nsim = num_simulations_per_core,
-                                    index = 1:num_cores_parallel,
-                                    parallel = list(socket_names = num_cores_parallel))
-=======
   cat(paste0("[ 1 ] Drawing from simulation model...\n")); ptm <- proc.time();
-  
->>>>>>> 5b3b382a45d4fc504579ef9ef44fab2d356c736e
   simulation <- simulate_from_model(object = simulation,
                                     nsim = num_simulations_per_core,
                                     index = 1:num_cores_parallel,
@@ -163,26 +154,15 @@ if( draw_from_model ){
 #' -------- [ Phase 2: simulate outcomes and allocate tx groups ] ----------- #
 # --------------------------------------------------------------------------- #
 if( allocate_groups ){ 
-<<<<<<< HEAD
-  simsub <- run_method(object = simsub,
-                       methods = SBR)
-  
-  simsub <- run_method(object = simsub,
-                           methods = list( CR, SBR, 
-                                           #                                           CAA_deterministic, 
-                                           CAA_probabilistic),
-                       parallel = list( socket_names = num_cores_parallel ))
-=======
-  cat(paste0("[ 2 ] Allocating groups...\n")); ptm <- proc.time();
-  
->>>>>>> 5b3b382a45d4fc504579ef9ef44fab2d356c736e
-  simulation <- run_method(object = simulation,
-                           methods = list( CR, SBR, 
-                                           #                                           CAA_deterministic, 
-                                           CAA_probabilistic),
-                           parallel = list( socket_names = num_cores_parallel ))
-  
-  cat(paste0("Success! \nElapsed time (allocate groups): \n")); print( proc.time() - ptm );
+  cat(paste0("[ 2 ] Allocating groups, by complete randomization (CR)...\n")); ptm <- proc.time();
+  simulation <- run_method(object = simulation, methods = CR, parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (allocate groups by CR): \n")); print( proc.time() - ptm );
+  cat(paste0("[ 2 ] Allocating groups, by stratified block randomization (SBR)...\n")); ptm <- proc.time();
+  simulation <- run_method(object = simulation, methods = SBR, parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (allocate groups by SBR): \n")); print( proc.time() - ptm );
+  cat(paste0("[ 2 ] Allocating groups, by covariate adaptive allocation (CAA)...\n")); ptm <- proc.time();
+  simulation <- run_method(object = simulation, methods = CAA_probabilistic, parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (allocate groups by CAA): \n")); print( proc.time() - ptm );
   
 }
 
@@ -190,24 +170,26 @@ if( allocate_groups ){
 #' -------- [ Phase 3: estimate tx effects (adjusted, unadjusted) ] --------- #
 # --------------------------------------------------------------------------- #
 if( estimate_effects ){
-  cat(paste0("[ 3a ] Estimating adjusted treatment effects...\n")); ptm <- proc.time();
-  simulation <- run_method(object = simulation,
-                           methods = list( CR + adjusted_ests,
-                                           SBR + adjusted_ests,
-#                                           CAA_deterministic + adjusted_ests,
-                                           CAA_probabilistic + adjusted_ests),
-                           parallel = list( socket_names = num_cores_parallel ))
-  cat(paste0("Success! \nElapsed time (estimate adjusted effects): \n")); print( proc.time() - ptm );
+  cat(paste0("[ 3a ] Estimating adjusted treatment effects (complete randomization)...\n")); ptm <- proc.time();
+  simulation <- run_method(object = simulation, methods = CR + adjusted_ests, parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (estimate adjusted effects, complete randomization): \n")); print( proc.time() - ptm );
+  cat(paste0("[ 3a ] Estimating adjusted treatment effects (stratified block randomization)...\n")); ptm <- proc.time();
+  simulation <- run_method(object = simulation, methods = SBR + adjusted_ests, parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (estimate adjusted effects, stratified block randomization): \n")); print( proc.time() - ptm );
+  cat(paste0("[ 3a ] Estimating adjusted treatment effects (covariate adaptive allocation)...\n")); ptm <- proc.time();
+  simulation <- run_method(object = simulation, methods = CAA_probabilistic + adjusted_ests, parallel = list( socket_names = num_cores_parallel ))
+  cat(paste0("Success! \nElapsed time (estimate adjusted effects, covariate adaptive allocation): \n")); print( proc.time() - ptm );
+  
   if( unadjusted_analyses ){
-    cat(paste0("[ 3b ] Estimating UNadjusted treatment effects...\n")); ptm <- proc.time();
-    simulation <- run_method(object = simulation,
-                             methods = list( CR + unadjusted_ests,
-                                             SBR + unadjusted_ests,
-#                                             CAA_deterministic + unadjusted_ests,
-                                             CAA_probabilistic + unadjusted_ests),
-                             parallel = list( socket_names = num_cores_parallel ))
-    cat(paste0("Success! \nElapsed time (estimate UNadjusted effects): \n")); print( proc.time() - ptm );
-    
+    cat(paste0("[ 3b ] Estimating unadjusted treatment effects (complete randomization)...\n")); ptm <- proc.time();
+    simulation <- run_method(object = simulation, methods = CR + unadjusted_ests, parallel = list( socket_names = num_cores_parallel ))
+    cat(paste0("Success! \nElapsed time (estimate unadjusted effects, complete randomization): \n")); print( proc.time() - ptm );
+    cat(paste0("[ 3b ] Estimating unadjusted treatment effects (stratified block randomization)...\n")); ptm <- proc.time();
+    simulation <- run_method(object = simulation, methods = SBR + unadjusted_ests, parallel = list( socket_names = num_cores_parallel ))
+    cat(paste0("Success! \nElapsed time (estimate unadjusted effects, stratified block randomization): \n")); print( proc.time() - ptm );
+    cat(paste0("[ 3b ] Estimating unadjusted treatment effects (covariate adaptive allocation)...\n")); ptm <- proc.time();
+    simulation <- run_method(object = simulation, methods = CAA_probabilistic + unadjusted_ests, parallel = list( socket_names = num_cores_parallel ))
+    cat(paste0("Success! \nElapsed time (estimate unadjusted effects, covariate adaptive allocation): \n")); print( proc.time() - ptm );
   }
 }
 
@@ -215,22 +197,17 @@ if( estimate_effects ){
 #' ---- [ Phase 4: estimate rerandomized errors (adjusted, unadjusted) ] ---- #
 # --------------------------------------------------------------------------- #
 if( estimate_rerandomized_errors ){
-  cat(paste0("[ 4a ] Estimating adjusted treatment effect errors by rerandomization...\n")); ptm <- proc.time();
+  cat(paste0("[ 4a ] Estimating adjusted treatment effect errors (for CAA only) by rerandomization...\n")); ptm <- proc.time();
   simulation <- run_method(object = simulation,
-                           methods = list( 
-#                             CAA_deterministic + adjusted_ests_rerandomized,
-                                           CAA_probabilistic + adjusted_ests_rerandomized ),
+                           methods = CAA_probabilistic + adjusted_ests_rerandomized,
                            parallel = list( socket_names = num_cores_parallel ))
-  cat(paste0("Success! \nElapsed time (estimate adjusted effects, rerandomized): \n")); print( proc.time() - ptm );
+  cat(paste0("Success! \nElapsed time (estimate adjusted effects for CAA, rerandomized): \n")); print( proc.time() - ptm );
   if( unadjusted_analyses ){
-    cat(paste0("[ 4b ] Estimating adjusted treatment effect errors by rerandomization...\n")); ptm <- proc.time();
+    cat(paste0("[ 4b ] Estimating adjusted treatment effect errors (for CAA only) by rerandomization...\n")); ptm <- proc.time();
     simulation <- run_method(object = simulation,
-                             methods = list( 
-#                               CAA_deterministic + unadjusted_ests_rerandomized,
-                                             CAA_probabilistic + unadjusted_ests_rerandomized ),
+                             methods = CAA_probabilistic + unadjusted_ests_rerandomized,
                              parallel = list( socket_names = num_cores_parallel ))
-    cat(paste0("Success! \nElapsed time (estimate UNadjusted effects, rerandomized): \n")); print( proc.time() - ptm );
-    
+    cat(paste0("Success! \nElapsed time (estimate UNadjusted effects for CAA, rerandomized): \n")); print( proc.time() - ptm );
   }
 }
 
