@@ -148,7 +148,6 @@ if( allocate_groups ){
     simulation <- run_method(object = simulation, methods = CAA_probabilistic, parallel = list( socket_names = num_cores_parallel ))
   }, file = "/dev/null")
   cat(paste0("Success! \nElapsed time (allocate groups by CAA): \n")); print( proc.time() - ptm );
-  
 }
 
 # --------------------------------------------------------------------------- #

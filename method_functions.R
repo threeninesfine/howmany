@@ -126,7 +126,7 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
                
                #' [ Dichotomize prognostic variables by X_cutpoint ]
                dichotomize <- function( x, cutpoint = 0 ){ x >= cutpoint }
-               .X <- matrix( draw$X[, 1:model$prognostic_factor_number] );
+               .X <- matrix( draw$X[, 1:model$prognostic_factor_number], ncol = model$prognostic_factor_number );
                if( model$prognostic_factor_type == "continuous" ){
                  .X[] <- vapply( .X, dichotomize, numeric(1) )
                }
