@@ -11,7 +11,6 @@ make_trial_allocation_model <- function(trial_size,
                                         treatment_assignment_effect_size,
                                         entry_time_effect_size,
                                         allocation_ratio,
-                                        num_rerandomizations,
                                         alpha )
 {
   #' [ use: > creates allocation model to evaluate treatment allocation methods. ]
@@ -55,7 +54,6 @@ make_trial_allocation_model <- function(trial_size,
                           bX = bX,
                           bT = bT,
                           bZ = bZ,
-                          num_rerandomizations = num_rerandomizations,
                           alpha = alpha ),
             simulate = function(trial_size, prognostic_factor_type, prognostic_factor_number, probsX, nsim ){
               #' [Prognostic factors (X)]
