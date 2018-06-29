@@ -21,15 +21,14 @@ simulation_name <- "alloc-simulation-batch-1-of-4"
 
 sim_trial_size = list( 32, 96 )
 sim_outcome_type = c( "binary" )
-sim_outcome_marginal_prevalence = c( 0.50 ) #' doesn't matter when Y continuous
+sim_outcome_marginal_prevalence = list( 0.10, 0.50 ) #' doesn't matter when Y continuous
 sim_prognostic_factor_type = c( "binary" ) # c("continuous", "binary"),
 sim_prognostic_factor_prevalence = list( 0.25, 0.50 )
-sim_prognostic_factor_number = list( 1, 2 )
-sim_prognostic_factor_effect_size = list( 1, 3 )
+sim_prognostic_factor_number = c( 2 )
+sim_prognostic_factor_effect_size = list( 1.1, 3 )
 sim_treatment_assignment_effect_size = list(1, 1.1, 3)
-sim_entry_time_effect_size = list( 1, 3 )
+sim_entry_time_effect_size = c( 1 )
 sim_allocation_ratio = c( 0.50 )
-sim_num_rerandomizations = c( 500 )
 sim_alpha = c( 0.05 )
 
 # --------------------------------------------------------------------------- #
@@ -41,10 +40,10 @@ results_directory <- "./results/"
 #' [ 'metricfile_name' contains model, draw, output, evaluation info ] 
 metricfile_name <- paste0( results_directory, "metrics-simulation.csv" ); 
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M") #' [ timestamp ]
-num_cores_parallel <- 1 # max(1, parallel::detectCores() - 1); #' TODO: revert this for parallel processing after testing
-num_simulations <- 10;  #' TODO: revert this! #' [ simulations per design matrix (all cores!)]
+num_cores_parallel <- max(1, parallel::detectCores() - 1); 
+num_simulations <- 5000 #' [ simulations per design matrix (all cores!)]
 num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel ); 
-num_reallocations <- 10; #' TODO: revert this! #' [ rerandomized allocations per simulated trial ]
+num_reallocations <- 500; #' TODO: revert this! #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
 generate_model <- TRUE #' [ Phase 1: define all models ]
@@ -102,15 +101,14 @@ if( generate_model ){
                    treatment_assignment_effect_size = sim_treatment_assignment_effect_size,
                    entry_time_effect_size = sim_entry_time_effect_size,
                    allocation_ratio = sim_allocation_ratio,
-                   num_rerandomizations = sim_num_rerandomizations,
                    alpha = sim_alpha,
                    vary_along = c("trial_size",
-                                  # "outcome_marginal_prevalence",
+                                  "outcome_marginal_prevalence",
                                   "prognostic_factor_prevalence",
-                                  "prognostic_factor_number",
+                                  # "prognostic_factor_number",
                                   "prognostic_factor_effect_size",
-                                  "treatment_assignment_effect_size",
-                                  "entry_time_effect_size"
+                                  "treatment_assignment_effect_size"
+                                  # "entry_time_effect_size"
                                   # "prognostic_factor_type",
                                   # "allocation_ratio",
                                   # "allocation_max_imbalance"
