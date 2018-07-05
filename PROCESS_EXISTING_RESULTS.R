@@ -1,32 +1,53 @@
 #' 3 July 2018 13:13
 #' Batch 1: Binary outcome, binary predictor
 #' Analysis of existing output
-#' 
 
+library("simulator");
+
+# simulation_name <- "alloc-simulation-batch-2-of-4"
 simulation_name <- "alloc-simulation-batch-1-of-4"
 #' [ 'results_directory' contains folder 'files' with .Rdata model, draw, output, evals ] 
-results_directory <- "./results/"
+results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/batch-1/results"
 #' [ 'metricfile_name' contains model, draw, output, evaluation info ] 
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
 metricfile_name <- paste0( results_directory, "metrics-", simulation_name, ".csv" ); 
-digits_to_round_to <- 5;
+completionfile_name <- paste0( results_directory, "progress-", simulation_name, ".csv");
+digits_to_round_to <- 6;
 
 #' [1] Load in existing simulation
-if(!exists( simulation )){
+if(!exists( "simulation" )){
   if(file.exists(paste0(results_directory, "files/sim-", simulation_name, ".Rdata"))){
+    cat("Simulation file exists... loading from .Rdata file... \n")
     simulation <- load_simulation(name = simulation_name, dir = results_directory)
   }else{
     simulation <- get_simulation_with_all_files(dir = results_directory)
   }
 }
 
+###############################################################################
+#' List of valid output method names
+alloc_method <- c("CR", "SBR", "CAA-MI-2-PBA-0.70", "CAA-MI-2-PBA-1.00");
+analysis_method <- c("REG", "RERAND");
+adjustment <- c("ADJ", "UN")
+
+pastey <- function( ... ){ paste( ..., sep = "_")}
+method_names_short <- do.call(pastey, expand.grid( alloc_method[1:3], analysis_method[1], adjustment ))
+method_names_rerand <- do.call(pastey, expand.grid( alloc_method[3], analysis_method[2], adjustment ))
+method_names_determ <- do.call(pastey, expand.grid( alloc_method[4], analysis_method, adjustment ))
+###############################################################################
+methods_to_use <- c(
+  method_names_short
+  , method_names_rerand
+  #  , method_names_determ
+)
+
 #' [2] Process results
-for( sim_j in 6:length(model( simulation )) ){
+for( sim_j in 1:length(model( simulation )) ){
   cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
   tryCatch({
-    output_j <- output( simulation )[[ sim_j ]] #' Model sim_j, 
+    output_j <- output( simulation, methods = methods_to_use )[[ sim_j ]] #' Model sim_j, 
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
-  output_method_names <- sapply( output_j, function( .object ){ .object@method_name })
+  output_method_names <- sapply( output_j, function( .object ){ .object@method_name }) #' get method names (compare to 'methods_to_use')
   methods_to_exclude <- c("CR", "SBR", "CAA", "CAA-MI-2-PBA-0.70", "CAA-MI-2-PBA-1.00");  #' exclude output from list that only contains allocation methods
   index_output_methods_to_include <- which(!( output_method_names %in% methods_to_exclude ))
   methods_included_parsed <- t(sapply( strsplit( output_method_names[ index_output_methods_to_include ], split = "_"), function(.listobj){unlist( .listobj )}))
@@ -54,7 +75,7 @@ for( sim_j in 6:length(model( simulation )) ){
     dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
     inds <- which( dimnames(dfs[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
-    metrics_by_dfs[[i]] <- c(colMeans(dfs[[i]][, inds]), numsim = dim( dfs[[i]] )[1] );
+    metrics_by_dfs[[i]] <- c(colMeans(dfs[[i]][, inds]), numsim = dim( dfs[[i]] )[1], modelno = i );
   }
   cat(paste0("Success! \nElapsed time: \n\n")); print( proc.time() - ptm );
   
