@@ -220,4 +220,61 @@ if( estimate_rerandomized_errors ){
 capture.output({ print("foo") }, file = "/dev/null")
 
 
+# --------------------------------------------------------------------------- #
+#' Problem 8: two loops or one, which is faster?
+
+#' Case A: two loops
+cat(paste0("\n[ Model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
+dfs <- list();
+for( i in 1:length( output_j )){
+  dfs[[ i ]]  <- data.frame(t(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
+  dimnames(dfs[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+}
+cat(paste0("Success! \nElapsed time: \n")); 
+
+cat(paste0("[ Model ", sim_j, " ][----|    ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n")); 
+metrics_by_dfs <- list();
+true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
+for( i in 1:length( dfs )){
+  dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
+  dfs[[i]]$power.rerand <- with( dfs[[i]], est < cilower | est > ciupper ) 
+  dfs[[i]]$power.ci <- with( dfs[[i]], 0 < cilower | 0 > ciupper )
+  dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
+  dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
+  indices_colMeans <- which( dimnames(dfs[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
+  metrics_by_dfs[[i]] <- c(colMeans(dfs[[i]][, indices_colMeans]), nsim = dim( dfs[[i]] )[1], modelno = sim_j );
+}
+cat(paste0("Success! \nElapsed time (TWO loops): \n\n")); print( proc.time() - ptm );
+
+#' Case B: one loop
+cat(paste0("[ Model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
+cat(paste0("[ Model ", sim_j, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
+dfs <- list();
+metrics_by_dfs <- list();
+true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
+for( i in 1:length( output_j )){
+  dfs[[ i ]]  <- data.frame(t(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
+  dimnames(dfs[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+  dfs[[i]]$power.pvalue <- with( dfs[[i]], p < 0.05 )
+  dfs[[i]]$power.rerand <- with( dfs[[i]], est < cilower | est > ciupper ) 
+  dfs[[i]]$power.ci <- with( dfs[[i]], 0 < cilower | 0 > ciupper )
+  dfs[[i]]$coverage <- with( dfs[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
+  dfs[[i]]$bias <- with( dfs[[i]], est - true_trt_effect )
+  indices_colMeans <- which( dimnames(dfs[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
+  metrics_by_dfs[[i]] <- c(colMeans(dfs[[i]][, indices_colMeans]), nsim = dim( dfs[[i]] )[1], modelno = sim_j );
+}
+cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
+
+# Success! 
+#   Elapsed time (TWO loops): 
+#   
+#   user  system elapsed 
+# 0.520   0.082   0.657 
+# 
+# Success! 
+#   Elapsed time (ONE loop): 
+#   
+#   user  system elapsed 
+# 0.433   0.049   0.480 
+
 
