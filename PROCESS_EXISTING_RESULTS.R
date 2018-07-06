@@ -8,17 +8,27 @@ library("simulator");
 ###############################################################################
 #' [0] Define settings
 ###############################################################################
+timestamp_output <- TRUE
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
 simulation_name <- "alloc-simulation-batch-1-of-4"
 results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/batch-1/results/"
-simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
+if( timestamp_output ){
+  simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
+  output_directory <- paste0( results_directory, "../", simulation_timestamp, "/" )
+  if(!dir.exists( output_directory )){
+    dir.create( output_directory );
+  }
+}else{
+  output_directory <- paste0( results_directory, "../" )
+}
+
 
 #' [ 'metricfile_name' contains evaluations of processed simulation output ] 
-metricfile_name <- paste0( results_directory, "../metrics-", simulation_name, ".csv" ); 
+metricfile_name <- paste0( output_directory, "metrics-", simulation_name, ".csv" ); 
 #' [ 'progressfile_name' contains the progress of simulations (ie. nsims by analysis method) ]
-progressfile_name <- paste0( results_directory, "../progress-", simulation_name, ".csv");
+progressfile_name <- paste0( output_directory, "progress-", simulation_name, ".csv");
 #' [ 'parameterfile_name' contains parameters by 'id_sim' (string of params) and 'modelno' ]
-parameterfile_name <- paste0( results_directory, "../parameters-", simulation_name, ".csv");
+parameterfile_name <- paste0( output_directory, "parameters-", simulation_name, ".csv");
 
 round_results <- TRUE;
 large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
