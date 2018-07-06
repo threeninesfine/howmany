@@ -1,6 +1,7 @@
-#' 3 July 2018 13:13
-#' Batch 1: Binary outcome, binary predictor
-#' Analysis of existing output
+#' Author: Michael Flanagin
+#' Date started: 3 July 2018 13:13
+#' Date last modified: 6 July 2018 15:03
+#' objective: Analysis of existing output
 
 library("simulator");
 
