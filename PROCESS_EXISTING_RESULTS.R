@@ -10,8 +10,8 @@ library("simulator");
 ###############################################################################
 timestamp_output <- TRUE
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-simulation_name <- "alloc-simulation-batch-1-of-4"
-results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/batch-1/results/"
+simulation_name <- "alloc-simulation-batch-2-of-4"
+results_directory <- "./results/"
 if( timestamp_output ){
   simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
   output_directory <- paste0( results_directory, "../", simulation_timestamp, "/" )
@@ -150,12 +150,6 @@ for( sim_j in 1:length(model( simulation )) ){
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
-  #' Compare output methods to 'methods_all_parsed'
-  cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
-  print( methods_included_parsed );
-  cat(paste0("\n Simulation [ ", sim_j, " ] is missing these outputs:\n"))
-  print( methods_all_parsed[ method_indices_not_incld, ] );
-  
   cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
   metrics_all_output <- do.call(rbind, metrics_by_out_j)
   if( round_results ){ #' note: disabling scientific notation
@@ -184,12 +178,17 @@ for( sim_j in 1:length(model( simulation )) ){
                                        modelno = sim_j, id_sim = id_sim )
   if(!file.exists( progressfile_name )){
     cat(paste0("\nNOTE: file: ", progressfile_name, " does not exist. \nCreating file and saving...\n\n"))
-    write.csv( progress_by_method_by_model, file = metricfile_name, row.names = FALSE )
+    write.csv( progress_by_method_by_model, file = progressfile_name, row.names = FALSE )
   }else{
     cat(paste0("Appending progress to file ", progressfile_name, "...\n"))
     write.table( progress_by_method_by_model, file = progressfile_name, sep = ",", append = TRUE, quote = FALSE,
                  col.names = FALSE, row.names = FALSE)
   }
+  #' Compare output methods to 'methods_all_parsed'
+  cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
+  print( methods_included_parsed );
+  cat(paste0("\n Simulation [ ", sim_j, " ] is missing these outputs:\n"))
+  print( methods_all_parsed[ method_indices_not_incld, ] );
   cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all );
   cat("\n\n\n\n")
 }
