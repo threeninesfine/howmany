@@ -277,4 +277,13 @@ cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
 #   user  system elapsed 
 # 0.433   0.049   0.480 
 
+# --------------------------------------------------------------------------- #
+# --------------------- [ 7 July 2018 (Saturday) ] -------------------------- #
+# --------------------------------------------------------------------------- #
+#' Problem 9: standard errors too large, complete/quasi-separation?
+outie <- output_j[[7]]
 
+for( i in 1:length( output_j )){
+  stderrs <- vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[2]] )}, numeric(1) )
+  hist( stderrs )
+}
