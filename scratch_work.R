@@ -283,10 +283,15 @@ cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
 #' Problem 9: standard errors too large, complete/quasi-separation?
 outie <- output_j[[7]]
 
+#' Scroll through output, looking for big numbers.
 for( i in 1:length( output_j )){
   stderrs <- vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[2]] )}, numeric(1) )
+  indices_bigse <- which( stderrs > 1000 )
   hist( stderrs )
 }
+
+
+head( indices_bigse )
 
 # --------------------------------------------------------------------------- #
 # ----------------------- [ 9 July 2018 (Monday) ] -------------------------- #
@@ -427,5 +432,97 @@ fix_directories <- function( simulation ){
 
 #' Read in output by variable
 times <- sapply( 1:9, function( method_index ){ output( sim2 )[[ method_index ]]@out[[1]]$time })
+
+
+# --------------------------------------------------------------------------- #
+# --------------------- [ 10 July 2018 (Tuesday) ] -------------------------- #
+# --------------------------------------------------------------------------- #
+#' Problem 11: Tables and figures
+#' Amalia Meier Magaret <amag@uw.edu>	Sat, Jul 7, 2018 at 2:08 PM
+#' OK, just to reiterate.  (I had to go watch the final moments of a world cup game, back now.)
+#' The table columns should be randomization method and analysis method, including whether adjusted for covariates.
+#' The table rows can be outcome and covariate prevalences and effect sizes (betas).  
+#' And number of participants can be row too.  I think that’s everything.  
+#' One table for coverage, one for power, one for bias.
+#' So exciting your progress!  Talk to you soon.
+
+mettbl <- read.csv( "/Users/Moschops/Documents/MSThesis/results/metrics-alloc-simulation-all-9Jul18.csv" )
+metrics_bYbX <- read.csv( "/Users/Moschops/Documents/MSThesis/results/metrics-alloc-simulation-batch-1-of-4.csv" )
+metrics_bYcX <- read.csv( "/Users/Moschops/Documents/MSThesis/results/metrics-alloc-simulation-batch-2-of-4.csv" )
+metrics_cYbX <- read.csv( "/Users/Moschops/Documents/MSThesis/results/metrics-alloc-simulation-batch-3-of-4.csv" )
+
+# --------------------------------------------------------------------------- #
+# ------------------ [ Continuous Y, continuous X ] ------------------------- #
+# --------------------------------------------------------------------------- #
+metrics_cYcX <- read.csv( "/Users/Moschops/Documents/MSThesis/results/metrics-alloc-simulation-batch-4-of-4.csv" )
+# --------------------------------------------------------------------------- #
+# --------------------------- [ COVERAGE ] ---------------------------------- #
+# --------------------------------------------------------------------------- #
+#' Adjusted analysis
+tbl4.1.cov.adj <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CR" & adjusted == 1 ) )
+tbl4.2.cov.adj <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "SBR" & adjusted == 1 ) )
+tbl4.3.cov.adj <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 0 & adjusted == 1 ) )
+tbl4.4.cov.adj <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 1 & adjusted == 1 ) )
+#' Unadjusted analysis
+tbl4.1.cov.un <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "CR" & adjusted == 0 ) )
+tbl4.2.cov.un <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "SBR" & adjusted == 0 ) )
+tbl4.3.cov.un <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 0 & adjusted == 0 ) )
+tbl4.4.cov.un <- subset( metrics_cYcX, select = c( coverage, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 1 & adjusted == 0 ) )
+
+#' Table 4a: Coverage (adjusted tx effect). setting = (continuous Y, continuous X)
+tbl4.coverage.adj <- cbind( CR = tbl4.1.cov.adj[,"coverage"], 
+                            SBR = tbl4.2.cov.adj[,"coverage"], 
+                            CAA_model = tbl4.3.cov.adj[,"coverage"], 
+                            CAA_rerand = tbl4.4.cov.adj[,"coverage"], tbl4.3.cov.adj[,-1] )
+
+#' Table 4b: Coverage (unadjusted tx effect). setting = (continuous Y, continuous X)
+tbl4.coverage.un <- cbind( CR = tbl4.1.cov.un[,"coverage"], 
+                            SBR = tbl4.2.cov.un[,"coverage"], 
+                            CAA_model = tbl4.3.cov.un[,"coverage"], 
+#                            CAA_rerand = tbl4.4.cov.un[,"coverage"], #' TODO(michael): run unadjusted, rerandomized simulations!
+                           tbl4.3.cov.un[,-1] )
+
+# --------------------------------------------------------------------------- #
+# ---------------------------- [ BIAS ] ------------------------------------- #
+# --------------------------------------------------------------------------- #
+#' Adjusted analysis
+tbl4.1.bias.adj <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CR" & adjusted == 1 ) )
+tbl4.2.bias.adj <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "SBR" & adjusted == 1 ) )
+tbl4.3.bias.adj <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 0 & adjusted == 1 ) )
+tbl4.4.bias.adj <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 1 & adjusted == 1 ) )
+#' Unadjusted analysis
+tbl4.1.bias.un <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "CR" & adjusted == 0 ) )
+tbl4.2.bias.un <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "SBR" & adjusted == 0 ) )
+tbl4.3.bias.un <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 0 & adjusted == 0 ) )
+tbl4.4.bias.un <- subset( metrics_cYcX, select = c( bias, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                         subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 1 & adjusted == 0 ) )
+
+#' Table 4c: Coverage (adjusted tx effect). setting = (continuous Y, continuous X)
+tbl4.bias.adj <- cbind( CR = tbl4.1.bias.adj[,"bias"], 
+                            SBR = tbl4.2.bias.adj[,"bias"], 
+                            CAA_model = tbl4.3.bias.adj[,"bias"], 
+                            CAA_rerand = tbl4.4.bias.adj[,"bias"], tbl4.3.bias.adj[,-1] )
+
+#' Table 4d: Coverage (unadjusted tx effect). setting = (continuous Y, continuous X)
+tbl4.bias.un <- cbind( CR = tbl4.1.bias.un[,"bias"], 
+                           SBR = tbl4.2.bias.un[,"bias"], 
+                           CAA_model = tbl4.3.bias.un[,"bias"], 
+                           #                            CAA_rerand = tbl4.4.bias.un[,"coverage"], #' TODO(michael): run unadjusted, rerandomized simulations!
+                           tbl4.3.bias.un[,-1] )
 
 
