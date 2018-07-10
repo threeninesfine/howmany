@@ -525,4 +525,40 @@ tbl4.bias.un <- cbind( CR = tbl4.1.bias.un[,"bias"],
                            #                            CAA_rerand = tbl4.4.bias.un[,"coverage"], #' TODO(michael): run unadjusted, rerandomized simulations!
                            tbl4.3.bias.un[,-1] )
 
+# --------------------------------------------------------------------------- #
+# --------------------------- [ POWER ] ------------------------------------- #
+# --------------------------------------------------------------------------- #
+#' Adjusted analysis
+tbl4.1.power.adj <- subset( metrics_cYcX, select = c( power.pvalue, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                           subset = ( alloc_method == "CR" & adjusted == 1 ) )
+tbl4.2.power.adj <- subset( metrics_cYcX, select = c( power.pvalue, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                           subset = ( alloc_method == "SBR" & adjusted == 1 ) )
+tbl4.3.power.adj <- subset( metrics_cYcX, select = c( power.pvalue, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                           subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 0 & adjusted == 1 ) )
+tbl4.4.power.adj <- subset( metrics_cYcX, select = c( power.rerand, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                           subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 1 & adjusted == 1 ) )
+#' Unadjusted analysis
+tbl4.1.power.un <- subset( metrics_cYcX, select = c( power.pvalue, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CR" & adjusted == 0 ) )
+tbl4.2.power.un <- subset( metrics_cYcX, select = c( power.pvalue, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "SBR" & adjusted == 0 ) )
+tbl4.3.power.un <- subset( metrics_cYcX, select = c( power.pvalue, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 0 & adjusted == 0 ) )
+tbl4.4.power.un <- subset( metrics_cYcX, select = c( power.rerand, trial_size, treatment_assignment_effect_size, prognostic_factor_effect_size, entry_time_effect_size ),
+                          subset = ( alloc_method == "CAA-MI-2-PBA-0.70" & rerandomized == 1 & adjusted == 0 ) )
+
+#' Table 4c: Coverage (adjusted tx effect). setting = (continuous Y, continuous X)
+tbl4.power.adj <- cbind( CR = tbl4.1.power.adj[,"power.pvalue"], 
+                        SBR = tbl4.2.power.adj[,"power.pvalue"], 
+                        CAA_model = tbl4.3.power.adj[,"power.pvalue"], 
+                        CAA_rerand = tbl4.4.power.adj[,"power.rerand"], tbl4.3.power.adj[,-1] )
+
+#' Table 4d: Coverage (unadjusted tx effect). setting = (continuous Y, continuous X)
+tbl4.power.un <- cbind( CR = tbl4.1.power.un[,"power.pvalue"], 
+                       SBR = tbl4.2.power.un[,"power.pvalue"], 
+                       CAA_model = tbl4.3.power.un[,"power.pvalue"], 
+                            CAA_rerand = tbl4.4.power.un[,"power.rerand"], #' TODO(michael): run unadjusted, rerandomized simulations!
+                       tbl4.3.power.un[,-1] )
+
+
 

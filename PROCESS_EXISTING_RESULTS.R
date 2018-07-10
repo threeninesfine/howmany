@@ -1,6 +1,6 @@
 #' Author: Michael Flanagin
 #' Date started: 3 July 2018 13:13
-#' Date last modified: 6 July 2018 15:03
+#' Date last modified: 7 July 2018 11:30
 #' objective: Analysis of existing output
 
 library("simulator");
@@ -10,8 +10,8 @@ library("simulator");
 ###############################################################################
 timestamp_output <- TRUE
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-simulation_name <- "alloc-simulation-batch-2-of-4"
-results_directory <- "./results/"
+simulation_name <- "alloc-simulation-batch-1-of-4"
+results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
 if( timestamp_output ){
   simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
   output_directory <- paste0( results_directory, "../", simulation_timestamp, "/" )
@@ -29,6 +29,9 @@ metricfile_name <- paste0( output_directory, "metrics-", simulation_name, ".csv"
 progressfile_name <- paste0( output_directory, "progress-", simulation_name, ".csv");
 #' [ 'parameterfile_name' contains parameters by 'id_sim' (string of params) and 'modelno' ]
 parameterfile_name <- paste0( output_directory, "parameters-", simulation_name, ".csv");
+#' [ 'outputfile_name' contains output in .csv format (compared to .Rdata) ]
+parameterfile_name <- paste0( output_directory, "output-", simulation_name, ".csv");
+
 
 round_results <- TRUE;
 large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
@@ -140,7 +143,6 @@ for( sim_j in 1:length(model( simulation )) ){
     dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
     dfs_out_j[[i]]$segt1k <- with( dfs_out_j[[i]], se > large_se_breakpoint )  # NEW: how many estimates have SE greater than 1000?
-    #' TODO(michael): find draws corresponding to large SEs (suspect quasi- or complete separation e.g. one group has 0/all events)
     methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
     methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
     indices_colMeans <- which( dimnames(dfs_out_j[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k"))
