@@ -10,39 +10,41 @@ library("simulator");
 ###############################################################################
 timestamp_output <- TRUE
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-simulation_name <- "alloc-simulation-batch-1-of-4"
+simulation_name <- "alloc-simulation-batch-2-of-4"
 results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
 if( timestamp_output ){
   simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
-  output_directory <- paste0( results_directory, "../", simulation_timestamp, "/" )
+  output_directory <- paste0( results_directory, "../../results/output_", simulation_timestamp, "/" )
   if(!dir.exists( output_directory )){
     dir.create( output_directory );
   }
 }else{
-  output_directory <- paste0( results_directory, "../" )
+  output_directory <- paste0( results_directory, "../../results" )
 }
 
 
 #' [ 'metricfile_name' contains evaluations of processed simulation output ] 
 metricfile_name <- paste0( output_directory, "metrics-", simulation_name, ".csv" ); 
+#' [ 'metricfile_name_subset_valid' are metrics subsetted on 'valid' draws (i.e. non-separation) ] 
+metricfile_name_subset_valid <- paste0( output_directory, "metrics-subset-", simulation_name, ".csv" ); 
 #' [ 'progressfile_name' contains the progress of simulations (ie. nsims by analysis method) ]
 progressfile_name <- paste0( output_directory, "progress-", simulation_name, ".csv");
 #' [ 'parameterfile_name' contains parameters by 'id_sim' (string of params) and 'modelno' ]
 parameterfile_name <- paste0( output_directory, "parameters-", simulation_name, ".csv");
 #' [ 'outputfile_name' contains output in .csv format (compared to .Rdata) ]
-parameterfile_name <- paste0( output_directory, "output-", simulation_name, ".csv");
+outputfile_name <- paste0( output_directory, "output-", simulation_name, ".csv");
 
 
 round_results <- TRUE;
 large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
-digits_to_round_to <- 6;
+digits_to_round_to <- 3;
 
 ###############################################################################
 #' [1] Load in existing simulation
 ###############################################################################
 if(!exists( "simulation" )){
   if(file.exists(paste0(results_directory, "files/sim-", simulation_name, ".Rdata"))){
-    cat("Simulation file exists... loading from .Rdata file... \n")
+    cat(paste0("Simulation file 'sim-", simulation_name, ".Rdata' exists... loading from .Rdata file... \n"))
     simulation <- load_simulation(name = simulation_name, dir = results_directory)
   }else{
     simulation <- get_simulation_with_all_files(dir = results_directory)
@@ -133,6 +135,8 @@ for( sim_j in 1:length(model( simulation )) ){
   cat(paste0("[ Model ", sim_j, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
   dfs_out_j <- list();
   metrics_by_out_j <- list();
+  dfs_out_j_subsetted <- list();
+  metrics_by_out_j_subsetted_validse <- list();
   true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
   for( i in 1:length( output_j )){
     dfs_out_j[[ i ]]  <- data.frame(t(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
@@ -143,12 +147,18 @@ for( sim_j in 1:length(model( simulation )) ){
     dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
     dfs_out_j[[i]]$segt1k <- with( dfs_out_j[[i]], se > large_se_breakpoint )  # NEW: how many estimates have SE greater than 1000?
+    #' 'time_elapsed' := overall time computing each method, 'nsim' := all simulations  
     methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
     methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
     indices_colMeans <- which( dimnames(dfs_out_j[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k"))
     metrics_by_out_j[[i]] <- c(colMeans(dfs_out_j[[i]][, indices_colMeans]), nsim = dim( dfs_out_j[[i]] )[1], 
                                methods_included_parsed[ i, "time_elapsed" ],
                                modelno = sim_j, method_name = output_j[[i]]@method_name);
+    dfs_out_j_subsetted[[i]] <- subset( dfs_out_j[[ i ]], subset = segt1k == FALSE, 
+                                   select = c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
+    metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
+                                                          methods_included_parsed[ i, "time_elapsed" ],
+                                                          modelno = sim_j, method_name = output_j[[i]]@method_name);
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
@@ -169,6 +179,28 @@ for( sim_j in 1:length(model( simulation )) ){
   }else{
     cat(paste0("Appending metrics to file ", metricfile_name, "...\n"))
     write.table( metrics_all_with_id, file = metricfile_name, sep = ",", append = TRUE, quote = FALSE,
+                 col.names = FALSE, row.names = FALSE)
+  }
+  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+  
+  
+  cat(paste0("[ model ", sim_j, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
+  metrics_all_output_validse <- do.call(rbind, metrics_by_out_j_subsetted_validse)
+  if( round_results ){ #' note: disabling scientific notation
+    metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
+      format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
+  }
+  metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
+                                                   model( simulation )[[ sim_j ]]@params[-index_exclude]) 
+  cat("Success! \n\n")
+  
+  cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write (SUBSETTED) metrics to: ", metricfile_name_subset_valid, "...\n")); ptm <- proc.time();
+  if(!file.exists( metricfile_name_subset_valid )){
+    cat(paste0("\nNOTE: file: ", metricfile_name_subset_valid, " does not exist. \nCreating file and saving...\n\n"))
+    write.csv( metrics_all_with_id_validse, file = metricfile_name_subset_valid, row.names = FALSE )
+  }else{
+    cat(paste0("Appending metrics to file ", metricfile_name_subset_valid, "...\n"))
+    write.table( metrics_all_with_id_validse, file = metricfile_name_subset_valid, sep = ",", append = TRUE, quote = FALSE,
                  col.names = FALSE, row.names = FALSE)
   }
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
