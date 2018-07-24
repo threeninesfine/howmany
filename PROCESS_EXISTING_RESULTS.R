@@ -166,6 +166,8 @@ for( sim_j in 1:length(model( simulation )) ){
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
+  #' TODO(michael): write output file including model ID in one column
+  
   cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
   metrics_all_output <- do.call(rbind, metrics_by_out_j)
   if( round_results ){ #' note: disabling scientific notation
