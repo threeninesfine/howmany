@@ -1,6 +1,6 @@
 #' Author: Michael Flanagin
 #' Date started: 3 July 2018 13:13
-#' Date last modified: 7 July 2018 11:30
+#' Date last modified: 24 July 2018 11:00
 #' objective: Analysis of existing output
 
 library("simulator");
@@ -8,22 +8,25 @@ library("simulator");
 ###############################################################################
 #' [0] Define settings
 ###############################################################################
-timestamp_output <- TRUE
+timestamp_output <- FALSE
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
 simulation_name <- "alloc-simulation-batch-2-of-4"
 results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
 if( timestamp_output ){
-  simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")  
+  simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")
   output_directory <- paste0( results_directory, "../../results/output_", simulation_timestamp, "/" )
   if(!dir.exists( output_directory )){
     dir.create( output_directory );
   }
 }else{
-  output_directory <- paste0( results_directory, "../../results" )
+  output_directory <- paste0( results_directory, "../../results-NEW/" )
+  if(!dir.exists( output_directory )){
+    dir.create( output_directory );
+  }
 }
 
 
-#' [ 'metricfile_name' contains evaluations of processed simulation output ] 
+#' [ 'metricfile_name' contains evaluations of processed simulation output ]
 metricfile_name <- paste0( output_directory, "metrics-", simulation_name, ".csv" ); 
 #' [ 'metricfile_name_subset_valid' are metrics subsetted on 'valid' draws (i.e. non-separation) ] 
 metricfile_name_subset_valid <- paste0( output_directory, "metrics-subset-", simulation_name, ".csv" ); 
@@ -37,6 +40,7 @@ outputfile_name <- paste0( output_directory, "output-", simulation_name, ".csv")
 
 round_results <- TRUE;
 large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
+large_est_breakpoint <- 40; # break point for calling an estimate 'large' (aka complete/quasi-separation)
 digits_to_round_to <- 3;
 
 ###############################################################################
@@ -146,7 +150,7 @@ for( sim_j in 1:length(model( simulation )) ){
     dfs_out_j[[i]]$power.ci <- with( dfs_out_j[[i]], 0 < cilower | 0 > ciupper )
     dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
-    dfs_out_j[[i]]$segt1k <- with( dfs_out_j[[i]], se > large_se_breakpoint )  # NEW: how many estimates have SE greater than 1000?
+    dfs_out_j[[i]]$segt1k <- with( dfs_out_j[[i]], se > large_se_breakpoint | abs( est ) > large_est_breakpoint )
     #' 'time_elapsed' := overall time computing each method, 'nsim' := all simulations  
     methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
     methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
