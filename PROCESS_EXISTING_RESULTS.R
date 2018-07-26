@@ -109,10 +109,25 @@ progress_table$modelno <- do.call("c", sapply(1:length(model( simulation )), fun
 progress_table$id_sim <- do.call("c", sapply( params_by_model$id_sim, function(.x) rep( .x, length( methods_all )), simplify = FALSE))
 cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
 
+# Make outputfile_names 
+# outputfile_names <- paste0( params_by_model$id_sim, "-output.csv" ) # old version: just have model here now
+outputfile_names <- paste0( simulation@name, "-model-", params_by_model$model_no, "-output.csv" )
+
 ###############################################################################
 #' [2] Process results
 ###############################################################################
-for( sim_j in 1:length(model( simulation )) ){
+
+# --------------------------------------------------------------------------- # 
+# TODO(michael): Pre-allocate space for storage
+# dfs_out_j: 5010 by 15 (= 9 estimates + 7 computed values)
+estimate_names <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+statistic_names <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k") # TODO: add 'mean_bias' and 'median_bias'!
+# metrics_by_out_j: 'nmodels' by 8 (at least)
+metrics_df_names <- c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k")
+# --------------------------------------------------------------------------- # 
+
+num_simulation_models <- length(model( simulation ))  # number of models with data to be analyzed
+for( sim_j in 1:num_simulation_models ){
   cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
   tryCatch({
     output_j <- output( simulation, methods = methods_to_process )[[ sim_j ]] #' Model sim_j, 
@@ -145,34 +160,61 @@ for( sim_j in 1:length(model( simulation )) ){
   for( i in 1:length( output_j )){
     dfs_out_j[[ i ]]  <- data.frame(t(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
     dimnames(dfs_out_j[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+    #' Compute statistics on estimates
+    dfs_out_j[[i]]$method_name <- output_j[[i]]@method_name
     dfs_out_j[[i]]$power.pvalue <- with( dfs_out_j[[i]], p < 0.05 )
     dfs_out_j[[i]]$power.rerand <- with( dfs_out_j[[i]], est < cilower | est > ciupper ) 
     dfs_out_j[[i]]$power.ci <- with( dfs_out_j[[i]], 0 < cilower | 0 > ciupper )
     dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
     dfs_out_j[[i]]$segt1k <- with( dfs_out_j[[i]], se > large_se_breakpoint | abs( est ) > large_est_breakpoint )
-    #' 'time_elapsed' := overall time computing each method, 'nsim' := all simulations  
+    #' Get simulation metrics: 
+    #' > 'time_elapsed' := overall time computing each method, 
     methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
+    #' > 'nsim' := all simulations  
     methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
-    indices_colMeans <- which( dimnames(dfs_out_j[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k"))
-    metrics_by_out_j[[i]] <- c(colMeans(dfs_out_j[[i]][, indices_colMeans]), nsim = dim( dfs_out_j[[i]] )[1], 
+    #' Compute means of relevant statistics
+    indices_colMeans <- which( dimnames(dfs_out_j[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", 
+                                                                    "power.rerand","power.ci", "coverage", "bias", "segt1k"))
+    metrics_by_out_j[[i]] <- c(colMeans(dfs_out_j[[i]][, indices_colMeans]),
+                               median_bias = median( dfs_out_j[[i]]$bias ),
+                               nsim = dim( dfs_out_j[[i]] )[1], 
                                methods_included_parsed[ i, "time_elapsed" ],
-                               modelno = sim_j, method_name = output_j[[i]]@method_name);
+                               modelno = sim_j, 
+                               method_name = output_j[[i]]@method_name);
+    #' Subset on 'segt1k' := indicator variable supposed to catch simulations with complete separation.
     dfs_out_j_subsetted[[i]] <- subset( dfs_out_j[[ i ]], subset = segt1k == FALSE, 
                                    select = c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
-    metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
-                                                          methods_included_parsed[ i, "time_elapsed" ],
-                                                          modelno = sim_j, method_name = output_j[[i]]@method_name);
+    
+    metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
+                                                 median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
+                                                 nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
+                                                 methods_included_parsed[ i, "time_elapsed" ],
+                                                 modelno = sim_j, 
+                                                 method_name = output_j[[i]]@method_name);
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
+  # --------------------------------------------------------------------------- # 
   #' TODO(michael): write output file including model ID in one column
+  outputfile_name <- outputfile_names[ sim_j ]
+  dfs_out_all <- do.call( rbind, dfs_out_j )
+  if(!file.exists( outputfile_name )){
+    cat(paste0("\nNOTE: Output file: ", outputfile_name, " does not exist. \nCreating output file and saving...\n\n"))
+    write.csv( dfs_out_all, file = outputfile_name, row.names = FALSE )
+  }else{
+    cat(paste0("Appending output from model ", sim_j, " to file ", outputfile_name, "...\n"))
+    write.table( dfs_out_all, file = outputfile_name, sep = ",", append = TRUE, quote = FALSE,
+                 col.names = FALSE, row.names = FALSE)
+  }
+  # --------------------------------------------------------------------------- # 
   
   cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
-  metrics_all_output <- do.call(rbind, metrics_by_out_j)
+  metrics_all_output <- do.call( rbind, metrics_by_out_j )
   if( round_results ){ #' note: disabling scientific notation
-    metrics_all_output[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k")] <- 
-      format(round(as.numeric(metrics_all_output[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k")]), digits_to_round_to ), scientific = FALSE)
+    variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias", "segt1k")
+    metrics_all_output[, variables_to_round ] <- 
+      format(round(as.numeric(metrics_all_output[, variables_to_round ]), digits_to_round_to ), scientific = FALSE)
   }
   metrics_all_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output,
                                           model( simulation )[[ sim_j ]]@params[-index_exclude]) 
