@@ -24,7 +24,7 @@ simulate_outcomes <- function( model, draw, Z ){
       model_intercept <- logit( model$outcome_marginal_prevalence ) - sum( model$bX * expected_value_X, model$bZ * 1/2 )
     }else{
       #' [assumption] X continuous implies X ~ N(0,1)
-      model_intercept <- logit( outcome_marginal_prevalence ) - 1/2 * model$bZ
+      model_intercept <- logit( model$outcome_marginal_prevalence ) - 1/2 * model$bZ
     }
   }
   linear_predictor <- model_intercept + draw$X %*% model$bX + Z * model$bZ + draw$Tobs * model$bT
@@ -108,7 +108,7 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
   allocation_biasing_probability <- ifelse(is.null( allocation_biasing_probability ), 1.0, allocation_biasing_probability )
   
   new_method(name = sprintf("CAA-MI-%.0f-PBA-%.2f", allocation_max_imbalance, allocation_biasing_probability),
-    # name = sprintf("CAA-max-imbalance_%.0f-pbiasedalloc_%.2f", allocation_max_imbalance, allocation_biasing_probability ),
+             # name = sprintf("CAA-max-imbalance_%.0f-pbiasedalloc_%.2f", allocation_max_imbalance, allocation_biasing_probability ),
              label = sprintf("Allocation - covariate adaptive allocation - max imbalance %.0f - allocation biasing probability %.2f", 
                              allocation_max_imbalance, allocation_biasing_probability ),
              settings = list( allocation_max_imbalance = allocation_max_imbalance,
@@ -131,11 +131,10 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
                  .X[] <- vapply( .X, dichotomize, numeric(1) )
                }
                
-               
                strata_labels <- apply( .X, 1, FUN=function(.row){ paste0(.row, collapse="") } ); # get strata membership for each observation
                Z_CAR <- rep( NA, times = model$trial_size );
                names( Z_CAR ) <- strata_labels; # make allocation vector 'Z', name vector by stratum membership (e.g. "101")
-               names_observed_strata <- lapply( 1:model$prognostic_factor_number, function(.col){sort(unique( draw$X[, .col] ))} );
+               names_observed_strata <- lapply( 1:model$prognostic_factor_number, function(.col){sort(unique( .X[, .col] ))} );
                levels_by_strata <- sapply( names_observed_strata, function(.listobj){length( .listobj )} );
                # '.alloc' tracks the history of covariate + treatment assignments i.e. the (X,Z) pairs 
                #   for sequential assessment of covariate imbalance across treatment groups.
@@ -143,27 +142,29 @@ make_covariate_adaptive_allocation_with_outcomes <- function( allocation_max_imb
                nforced <- 0;
                for( subject_i in 1:model$trial_size ){ 
                  covar_indices_subj_i <- sapply( 1:model$prognostic_factor_number, function(.j){
-                   which( names_observed_strata[[ .j ]] == draw$X[subject_i, .j] )} );
+                   which( names_observed_strata[[ .j ]] == .X[subject_i, .j] )} );
                  for( covar_j in 1:model$prognostic_factor_number ){ #' [ considering each covariate 'covar_j' in decreasing order of importance, ]
-                   tx_ctrl_counts_by_subj_i_covar_j <- apply(.alloc, c(1, (covar_j+1)), sum)[ , covar_indices_subj_i[covar_j]]; #' consider tx/control assignments for subject 'subject_i's observed covar_j
+                   #' [ 'tx_ctrl_counts_by_subj_i_covar_j' are tx/control assignments for subject 'subject_i's observed 'covar_j' ]
+                   tx_ctrl_counts_by_subj_i_covar_j <- apply(.alloc, c(1, (covar_j+1)), sum)[ , covar_indices_subj_i[covar_j]]; 
                    observed_tx_imbalance_subj_i_covar_j <- diff( tx_ctrl_counts_by_subj_i_covar_j ); #' [ evaluate potential imbalance := #"tx" - #"ctrl" ]
                    #' [ compare imbalance to a priori limits (specified by 'max_imbalance_vector') ]
                    if( abs( observed_tx_imbalance_subj_i_covar_j ) >= max_imbalance_vector[ covar_j ] ){ #' [ if potential allocation would meet/exceed imbalance, ]
                      nforced <- nforced + 1; #' track forced allocation
-                     group_minimizing_imbal <- ifelse(observed_tx_imbalance_subj_i_covar_j > 0, 0, 1); #' positive imbalance implies alloc to "ctrl" minimizes imbalance.
-                     assign_to_min_group <- rbinom(n = 1, size = 1, prob = allocation_biasing_probability); #' [assign to group that minimizes imbalance with probability prob_biased.]
-                     Z_CAR[ subject_i ] <- ifelse( assign_to_min_group,
-                                                   group_minimizing_imbal,
-                                                   1 - group_minimizing_imbal );
-                     index_new_allocation <- rbind(c(Z_CAR[ subject_i ] + 1, covar_indices_subj_i )); #' note: must use rbind to make a matrix to index an array!
+                     group_minimizing_imbal <- observed_tx_imbalance_subj_i_covar_j <= 0; #' positive imbalance implies alloc to "ctrl" minimizes imbalance.
+                     if( rbinom(n = 1, size = 1, prob = allocation_biasing_probability) ){#' [assign to group that minimizes imbalance with probability prob_biased.]
+                       Z_CAR[ subject_i ] <- group_minimizing_imbal;
+                     }else{
+                       Z_CAR[ subject_i ] <- 1 - group_minimizing_imbal;
+                     }
+                     index_new_allocation <- matrix(c(Z_CAR[ subject_i ] + 1, covar_indices_subj_i )); #' note: must use rbind to make a matrix to index an array!
                      .alloc[ index_new_allocation ] <- .alloc[ index_new_allocation ] + 1; #' update allocation matrix with new assignment.
                      break;
                    } # end if 'imbalance is greater than max allowed imbalance'
                  } # end for 'covar_j'
                  #' [if we reach the last (least important) X covar and haven't assigned Z yet,]
-                 if( covar_j == model$prognostic_factor_number && is.na( Z_CAR[ subject_i ] ) ){
+                 if( is.na( Z_CAR[ subject_i ] ) ){
                    Z_CAR[ subject_i ] <- rbinom( n = 1, size = 1, prob = model$allocation_ratio ); #' [ randomize to treatment and control with probability 'allocation_ratio' ]
-                   index_new_allocation <- rbind(c( Z_CAR[ subject_i ] + 1, covar_indices_subj_i )); #' update allocation matrix with new assignment.
+                   index_new_allocation <- matrix(c( Z_CAR[ subject_i ] + 1, covar_indices_subj_i )); #' update allocation matrix with new assignment.
                    .alloc[ index_new_allocation ] <- .alloc[ index_new_allocation ] + 1;
                  } # end if 'no imbalance passes max imbalance' 
                } # end for 'subject_i'
