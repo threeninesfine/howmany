@@ -53,7 +53,7 @@ if( timestamp_output ){
     dir.create( output_directory );
   }
 }else{
-  output_directory <- paste0( results_directory, "../../results-NEWEST/" )
+  output_directory <- paste0( results_directory, "../../results/" )
   if(!dir.exists( output_directory )){
     dir.create( output_directory );
   }
@@ -78,7 +78,7 @@ if(!exists( "simulation" )){
     cat(paste0("Simulation file 'sim-", simulation_name, ".Rdata' exists... loading from .Rdata file... \n"))
     simulation <- load_simulation(name = simulation_name, dir = results_directory)
   }else{
-    simulation <- get_simulation_with_all_files(dir = results_directory)
+    simulation_test <- get_simulation_with_all_files(dir = results_directory)
   }
 }
 
@@ -159,8 +159,9 @@ if( keep_output_in_environment ){
 }
 for( sim_j in 1:num_simulation_models ){
   cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+  #' Try loading simulation output for model 'sim_j' with output names in 'methods_to_process'
   tryCatch({
-    output_j <- output( simulation, methods = methods_to_process )[[ sim_j ]] #' Model sim_j, 
+    output_j <- output( simulation, subset = sim_j, methods = methods_to_process )
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
   cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
   
@@ -326,6 +327,7 @@ for( sim_j in 1:num_simulation_models ){
   }
   
   #' Deallocate memory in models after each loop.
+  #' ref: https://www.r-bloggers.com/speed-trick-assigning-large-object-null-is-much-faster-than-using-rm/
   if( remove_output_after_sourcing ){
     dfs_out_j <- NULL;
     dfs_out_all <- NULL;
