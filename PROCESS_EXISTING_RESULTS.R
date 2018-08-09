@@ -2,8 +2,29 @@
 #' Date started: 3 July 2018 13:13
 #' Date last modified: 24 July 2018 11:00
 #' objective: Analysis of existing output
+#' 
+
+# --------------------------------------------------------------------------- # 
+#' This script evaluates metrics on output from "simulator" objects defined by 'simulation_name'.
+#' 
+#' It will [1] compute metrics on simulation output values
+#'         [2] test allocations for complete separation (BINARY OUTCOMES ONLY)
+#'         [3] write to 'metricfile_name' and (if appropriate) metricfile_name_valid_subsetted' 
+#' [input values: "est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations"] 
+#' [output metrics: "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k"]
+# --------------------------------------------------------------------------- # 
+#' [ 9 August 2018 ] 
+#' > Added settings to customize:
+#' >> script performance (write_progressfile, write_outputfiles, etc)
+#' >> Memory persistence and deallocation ('keep_output_in_environment', 'remove_output_after_sourcing')
+#' > TODO(michael): update flags for identifying complete separation!
 
 library("simulator");
+
+#' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
+batch_no <- 2;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
+simulation_name <- "alloc-simulation-batch-2-of-4"
+results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
 
 ###############################################################################
 #' [0A] Define settings
@@ -25,9 +46,6 @@ large_est_breakpoint <- 40; # break point for calling an estimate 'large' (aka c
 ###############################################################################
 #' [0B] Specify file / directory I/O 
 ###############################################################################
-#' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-simulation_name <- "alloc-simulation-batch-2-of-4"
-results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
 if( timestamp_output ){
   simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")
   output_directory <- paste0( results_directory, "../../results/output_", simulation_timestamp, "/" )
@@ -51,8 +69,6 @@ progressfile_name <- paste0( output_directory, "progress-", simulation_name, ".c
 parameterfile_name <- paste0( output_directory, "parameters-", simulation_name, ".csv");
 #' [ 'outputfile_name' contains output in .csv format (compared to .Rdata) ]
 outputfile_name <- paste0( output_directory, "output-", simulation_name, ".csv");
-
-
 
 ###############################################################################
 #' [1] Load in existing simulation
@@ -110,7 +126,6 @@ if( write_parameterfile ){
 cat("Elapsed time: \n"); print( proc.time() - ptm );
 
 # Make outputfile_names 
-# outputfile_names <- paste0( params_by_model$id_sim, "-output.csv" ) # old version: just have model here now
 outputfile_names <- paste0( simulation@name, "-model-", params_by_model$model_no, "-output.csv" )
 
 ###############################################################################
@@ -135,15 +150,6 @@ if( write_progressfile ){
 ###############################################################################
 #' [2] Process results
 ###############################################################################
-
-# --------------------------------------------------------------------------- # 
-# TODO(michael): Pre-allocate space for storage
-# dfs_out_j: 5010 by 15 (= 9 estimates + 7 computed values)
-estimate_names <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
-statistic_names <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k") # TODO: add 'mean_bias' and 'median_bias'!
-# metrics_by_out_j: 'nmodels' by 8 (at least)
-metrics_df_names <- c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k")
-# --------------------------------------------------------------------------- # 
 
 num_simulation_models <- length(model( simulation, reference = TRUE ))  # number of models with data to be analyzed
 if( keep_output_in_environment ){
