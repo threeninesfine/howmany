@@ -6,14 +6,16 @@
 ## objective          = Main simulator file.
 
 library("simulator") # this file was created under simulator version 0.2.0
+library("compiler")
+compile_functions <- TRUE;  # compile base functions?
 # --------------------------------------------------------------------------- #
 #' ------------------------ [ 0. Conditions ] ------------------------------- #
 # --------------------------------------------------------------------------- #
 #' [ step 0: set file management ]
 #' Batch 1 will have: outcome = "binary" & predictor = "binary"
-simulation_name <- "alloc-simulation-batch-1-of-4"
+# simulation_name <- "alloc-simulation-batch-1-of-4"
 #' Batch 2 will have: outcome = "binary" & predictor = "continuous"
-# simulation_name <- "alloc-simulation-batch-2-of-4"
+simulation_name <- "alloc-simulation-batch-2-of-4"
 #' Batch 3 will have: outcome = "continuous" & predictor = "binary"
 # simulation_name <- "alloc-simulation-batch-3-of-4"
 #' Batch 4 will have: outcome = "continuous" & predictor = "continuous"
@@ -22,8 +24,8 @@ simulation_name <- "alloc-simulation-batch-1-of-4"
 sim_trial_size = c( 96 )
 sim_outcome_type = c( "binary" )
 sim_outcome_marginal_prevalence = list( 0.10, 0.50 ) #' doesn't matter when Y continuous
-sim_prognostic_factor_type = c( "binary" ) # c("continuous", "binary"),
-sim_prognostic_factor_prevalence = list( 0.25, 0.50 )
+sim_prognostic_factor_type = c( "continuous" ) # c("continuous", "binary"),
+sim_prognostic_factor_prevalence = c( 777 )
 sim_prognostic_factor_number = c( 2 )
 sim_prognostic_factor_effect_size = list( 1.1, 3 )
 sim_treatment_assignment_effect_size = list(1, 1.1, 3)
@@ -36,7 +38,7 @@ sim_alpha = c( 0.05 )
 # --------------------------------------------------------------------------- #
 
 #' [ 'results_directory' contains folder 'files' with .Rdata model, draw, output, evals ] 
-results_directory <- "./results/"
+results_directory <- "../datasets/results/"
 #' [ 'metricfile_name' contains model, draw, output, evaluation info ] 
 metricfile_name <- paste0( results_directory, "metrics-simulation.csv" ); 
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M") #' [ timestamp ]
@@ -46,7 +48,7 @@ num_simulations_per_core <- ceiling( num_simulations / num_cores_parallel );
 num_reallocations <- 500; #' TODO: revert this! #' [ rerandomized allocations per simulated trial ]
 
 #' [ Determine which phase of the simulation to be run ]
-generate_model <- TRUE #' [ Phase 1: define all models ]
+generate_model <- FALSE #' [ Phase 1: define all models ]
 draw_from_model <- TRUE #' [ Phase 1.5: simulate draws from models (created or loaded from saved state) ]
 allocate_groups <- TRUE #' [ Phase 2: simulate outcomes and allocate tx groups ]
 estimate_effects <- TRUE #' [ Phase 3: estimate tx effects (adjusted, and potentially unadjusted) ]
@@ -59,6 +61,16 @@ source("model_functions.R") #' [ step 1: define your Model, its parameters, and 
 source("method_functions.R") #' [ step 2: define your Methods, data analysis approaches (produces 'out') ]
 source("eval_functions.R")#' [ step 3: define your Metrics, evaluation measures (produces 'eval'?) ]
 
+if( compile_functions ){
+  enableJIT(3)
+  make_trial_allocation_model <- cmpfun( make_trial_allocation_model )
+  simulate_outcomes <- cmpfun( simulate_outcomes )
+  make_complete_randomization_with_outcomes <- cmpfun( make_complete_randomization_with_outcomes )
+  make_stratified_block_randomization_with_outcomes <- cmpfun( make_stratified_block_randomization_with_outcomes )
+  make_covariate_adaptive_allocation_with_outcomes <- cmpfun( make_covariate_adaptive_allocation_with_outcomes )
+  estimate_regression_parameters <- cmpfun( estimate_regression_parameters )
+  rerandomized_error_estimates <- cmpfun( rerandomized_error_estimates )
+}
 # --------------------------------------------------------------------------- #
 #' -------------------------- [ II. Methods ] ------------------------------- #
 # --------------------------------------------------------------------------- #
@@ -114,6 +126,9 @@ if( generate_model ){
                                   # "allocation_max_imbalance"
                                   #  "outcome_type"
                    )) 
+}else{
+  simulation <- load_simulation( name = simulation_name, 
+                                 dir = results_directory )
 }
 
 if( draw_from_model ){
