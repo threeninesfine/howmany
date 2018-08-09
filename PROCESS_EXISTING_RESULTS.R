@@ -212,16 +212,20 @@ for( sim_j in 1:num_simulation_models ){
                                methods_included_parsed[ i, "time_elapsed" ],
                                modelno = sim_j, 
                                method_name = output_j[[i]]@method_name);
-    #' Subset on 'segt1k' := indicator variable supposed to catch simulations with complete separation.
-    dfs_out_j_subsetted[[i]] <- subset( dfs_out_j[[ i ]], subset = segt1k == FALSE, 
-                                   select = c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
     
-    metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
-                                                 median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
-                                                 nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
-                                                 methods_included_parsed[ i, "time_elapsed" ],
-                                                 modelno = sim_j, 
-                                                 method_name = output_j[[i]]@method_name);
+    #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM!)
+    if( batch_no in 1:2 ){
+      #' Subset on 'segt1k' := indicator variable supposed to catch simulations with complete separation.
+      dfs_out_j_subsetted[[i]] <- subset( dfs_out_j[[ i ]], subset = segt1k == FALSE, 
+                                          select = c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
+      
+      metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
+                                                   median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
+                                                   nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
+                                                   methods_included_parsed[ i, "time_elapsed" ],
+                                                   modelno = sim_j, 
+                                                   method_name = output_j[[i]]@method_name);
+    }
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
@@ -261,28 +265,30 @@ for( sim_j in 1:num_simulation_models ){
   }
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   
-  
-  cat(paste0("[ model ", sim_j, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
-  metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
-  if( round_results ){ #' note: disabling scientific notation
-    metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
-      format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
+  #' If outcome is binary, then write subsetted metrics to file!
+  if( batch_no %in% 1:2 ){
+    cat(paste0("[ model ", sim_j, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
+    metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
+    if( round_results ){ #' note: disabling scientific notation
+      metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
+        format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
+    }
+    metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
+                                                     model( simulation )[[ sim_j ]]@params[-index_exclude]) 
+    cat("Success! \n\n")
+    
+    cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write (SUBSETTED) metrics to: ", metricfile_name_subset_valid, "...\n")); ptm <- proc.time();
+    if(!file.exists( metricfile_name_subset_valid )){
+      cat(paste0("\nNOTE: file: ", metricfile_name_subset_valid, " does not exist. \nCreating file and saving...\n\n"))
+      write.csv( metrics_all_with_id_validse, file = metricfile_name_subset_valid, row.names = FALSE )
+    }else{
+      cat(paste0("Appending metrics to file ", metricfile_name_subset_valid, "...\n"))
+      write.table( metrics_all_with_id_validse, file = metricfile_name_subset_valid, sep = ",", append = TRUE, quote = FALSE,
+                   col.names = FALSE, row.names = FALSE)
+    }
+    cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   }
-  metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
-                                                   model( simulation )[[ sim_j ]]@params[-index_exclude]) 
-  cat("Success! \n\n")
-  
-  cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write (SUBSETTED) metrics to: ", metricfile_name_subset_valid, "...\n")); ptm <- proc.time();
-  if(!file.exists( metricfile_name_subset_valid )){
-    cat(paste0("\nNOTE: file: ", metricfile_name_subset_valid, " does not exist. \nCreating file and saving...\n\n"))
-    write.csv( metrics_all_with_id_validse, file = metricfile_name_subset_valid, row.names = FALSE )
-  }else{
-    cat(paste0("Appending metrics to file ", metricfile_name_subset_valid, "...\n"))
-    write.table( metrics_all_with_id_validse, file = metricfile_name_subset_valid, sep = ",", append = TRUE, quote = FALSE,
-                 col.names = FALSE, row.names = FALSE)
-  }
-  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-  
+
   #' Write progress table to .csv 
   if( write_progressfile ){
     cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write progress table to: ", progressfile_name, "...\n")); ptm <- proc.time();
@@ -313,7 +319,10 @@ for( sim_j in 1:num_simulation_models ){
   if( keep_output_in_environment ){
     dfs_by_model[[ sim_j ]] <- dfs_out_all;
     metrics_by_model[[ sim_j ]] <- metrics_all_with_id;
-    metrics_by_model_subsetted[[ sim_j ]] <- metrics_all_with_id_validse;
+    #' only save subsetted metrics if they exist!
+    if( batch_no %in% 1:2 ){
+      metrics_by_model_subsetted[[ sim_j ]] <- metrics_all_with_id_validse;
+    }
   }
   
   #' Deallocate memory in models after each loop.
