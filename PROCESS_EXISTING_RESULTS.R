@@ -11,20 +11,23 @@
 #'         [2] test allocations for complete separation (BINARY OUTCOMES ONLY)
 #'         [3] write to 'metricfile_name' and (if appropriate) metricfile_name_valid_subsetted' 
 #' [input values: "est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations"] 
-#' [output metrics: "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k"]
+#' [output metrics: "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "separation_status"]
 # --------------------------------------------------------------------------- # 
 #' [ 9 August 2018 ] 
 #' [11 : 45] Added settings to customize:
 #' >> script performance (write_progressfile, write_outputfiles, etc)
 #' >> Memory persistence and deallocation ('keep_output_in_environment', 'remove_output_after_sourcing')
-#' [12 : 15] TODO(michael): update flags for identifying complete separation!
-#' [13 : 32] output references are broken in cases where output objects deleted manually.
-#' Problem: for each model, output() returns list of lists.
+#' [ 12:15 ]  TODO(michael): update flags for identifying complete separation!
+#' [ 13:32 ] output references are broken in cases where output objects deleted manually. 
+#' [ 14:28 ] FIXED! Note: used get_simulation_with_all_files() to load in simulation.
+#' [ 14:33 ] Running batch-2 processing, took on avg 6sec to run code (vs 120sec!) 
+#' [ 14:34 ] Running batch-1 processing
+# --------------------------------------------------------------------------- # 
 
 library("simulator");
 
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-batch_no <- 2;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
+batch_no <- 1;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
 simulation_name <- paste0("alloc-simulation-batch-", batch_no, "-of-4");
 results_directory <- paste0("/Users/Moschops/Documents/MSThesis/datasets/batch-", batch_no, "/");
 nsim <- 5010;  #' number of simulations (for pre-allocation)
