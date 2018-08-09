@@ -12,8 +12,12 @@ timestamp_output <- FALSE;  # Add 'Y-m-d_H-M' to output folder?
 round_results <- TRUE;  # Round results when writing table to 'digits_to_round_to'?
 digits_to_round_to <- 3;
 
-write_progressfile <- FALSE;  # Write progress file?
-write_parameterfile <- FALSE;  # Write parameter file?
+write_progressfile <- FALSE;  # Write progress file to .csv?
+write_parameterfile <- FALSE;  # Write parameter file to .csv?
+write_outputfiles <- FALSE;  # Write raw output files to .csv after processing from .Rdata?
+
+keep_output_in_environment <- TRUE;  # make list of lists containing output?
+remove_output_after_sourcing <- TRUE;  # de-allocate variables after sourcing?
 
 large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
 large_est_breakpoint <- 40; # break point for calling an estimate 'large' (aka complete/quasi-separation)
@@ -85,9 +89,6 @@ methods_to_process <- c(
   #  , method_names_deterministic 
 )
 
-#' We will track progress on these methods:
-methods_all <- c( method_names_short, method_names_rerand, method_names_deterministic )
-
 ###############################################################################
 #' [2] Writing table of parameters by 'modelno' and 'id_sim'
 ###############################################################################
@@ -116,6 +117,9 @@ outputfile_names <- paste0( simulation@name, "-model-", params_by_model$model_no
 #' [2] Simulation progress table by 'id_sim'
 ###############################################################################
 if( write_progressfile ){
+  #' We will track progress on these methods:
+  methods_all <- c( method_names_short, method_names_rerand, method_names_deterministic )
+
   cat("Creating progress table for simulation results... \n"); ptm <- proc.time();
   methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")))
   colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
@@ -142,6 +146,11 @@ metrics_df_names <- c("adjusted","rerandomized", "power.pvalue", "power.rerand",
 # --------------------------------------------------------------------------- # 
 
 num_simulation_models <- length(model( simulation, reference = TRUE ))  # number of models with data to be analyzed
+if( keep_output_in_environment ){
+  dfs_by_model <- vector( mode = "list", length = num_simulation_models );
+  metrics_by_model <- vector( mode = "list", length = num_simulation_models );
+  metrics_by_model_subsetted <- vector( mode = "list", length = num_simulation_models );
+}
 for( sim_j in 1:num_simulation_models ){
   cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
   tryCatch({
@@ -149,28 +158,28 @@ for( sim_j in 1:num_simulation_models ){
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
   cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
   
+  #' Parse model parameters into unique identifier 'id_sim'
   index_exclude <- which( sapply(model( simulation )[[ sim_j ]]@params, function(.x){length(unlist(.x)) > 1} )) # exclude non-scalars
   id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
   cat(paste0("Unique ID for simulation: ", id_sim, "\n\n")); 
   
-  #' Get method names with output (compare to 'methods_all_parsed')
-  output_method_names <- sapply( output_j, function( .object ){ .object@method_name }) 
   #' Parse 'method_name' strings into {"method_name", "alloc_method", "analysis_method", "adjustment", "nsim"}
+  output_method_names <- sapply( output_j, function( .object ){ .object@method_name }) 
   methods_included_parsed <- cbind( output_method_names, 
                                     t(sapply( strsplit( output_method_names, split = "_"), function(.listobj){unlist( .listobj )})),
                                     nsim = 0, time_elapsed = NA )
   colnames( methods_included_parsed ) <- c("method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
   
-  #' Make table of all methods we want simulation output for.
-  methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")), nsim = 0, time_elapsed = NA)
-  colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
-
   cat(paste0("[ Model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
   cat(paste0("[ Model ", sim_j, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
-  dfs_out_j <- list();
-  metrics_by_out_j <- list();
-  dfs_out_j_subsetted <- list();
-  metrics_by_out_j_subsetted_validse <- list();
+  
+  #' Define lists that will store output data
+  num_outputs <- length( output_method_names );
+  dfs_out_j <- vector( mode = "list", length = num_outputs );
+  metrics_by_out_j <- vector( mode = "list", length = num_outputs );
+  dfs_out_j_subsetted <- vector( mode = "list", length = num_outputs );
+  metrics_by_out_j_subsetted_validse <- vector( mode = "list", length = num_outputs );
+  
   true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
   for( i in 1:length( output_j )){
     dfs_out_j[[ i ]]  <- data.frame(t(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
@@ -210,20 +219,20 @@ for( sim_j in 1:num_simulation_models ){
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
-  # --------------------------------------------------------------------------- # 
-  #' TODO(michael): write output file including model ID in one column
-  outputfile_name <- outputfile_names[ sim_j ]
+  #' Write output files to .csv?
   dfs_out_all <- do.call( rbind, dfs_out_j )
-  if(!file.exists( outputfile_name )){
-    cat(paste0("\nNOTE: Output file: ", outputfile_name, " does not exist. \nCreating output file and saving...\n\n"))
-    write.csv( dfs_out_all, file = outputfile_name, row.names = FALSE )
-  }else{
-    cat(paste0("Appending output from model ", sim_j, " to file ", outputfile_name, "...\n"))
-    write.table( dfs_out_all, file = outputfile_name, sep = ",", append = TRUE, quote = FALSE,
-                 col.names = FALSE, row.names = FALSE)
+  if( write_outputfiles ){
+    outputfile_name <- outputfile_names[ sim_j ]
+    if(!file.exists( outputfile_name )){
+      cat(paste0("\nNOTE: Output file: ", outputfile_name, " does not exist. \nCreating output file and saving...\n\n"))
+      write.csv( dfs_out_all, file = outputfile_name, row.names = FALSE )
+    }else{
+      cat(paste0("Appending output from model ", sim_j, " to file ", outputfile_name, "...\n"))
+      write.table( dfs_out_all, file = outputfile_name, sep = ",", append = TRUE, quote = FALSE,
+                   col.names = FALSE, row.names = FALSE)
+    }
   }
-  # --------------------------------------------------------------------------- # 
-  
+
   cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
   metrics_all_output <- do.call( rbind, metrics_by_out_j )
   if( round_results ){ #' note: disabling scientific notation
@@ -248,7 +257,7 @@ for( sim_j in 1:num_simulation_models ){
   
   
   cat(paste0("[ model ", sim_j, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
-  metrics_all_output_validse <- do.call(rbind, metrics_by_out_j_subsetted_validse)
+  metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
   if( round_results ){ #' note: disabling scientific notation
     metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
       format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
@@ -268,24 +277,49 @@ for( sim_j in 1:num_simulation_models ){
   }
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   
-  cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write progress table to: ", metricfile_name, "...\n")); ptm <- proc.time();
-  #' Get indices of methods with no output.
-  method_indices_not_incld <- which( !(methods_all_parsed[, "method_name"] %in% methods_included_parsed[, "method_name"]) )
-  progress_by_method_by_model <- cbind(rbind( methods_included_parsed, methods_all_parsed[ method_indices_not_incld, ]),
-                                       modelno = sim_j, id_sim = id_sim )
-  if(!file.exists( progressfile_name )){
-    cat(paste0("\nNOTE: file: ", progressfile_name, " does not exist. \nCreating file and saving...\n\n"))
-    write.csv( progress_by_method_by_model, file = progressfile_name, row.names = FALSE )
-  }else{
-    cat(paste0("Appending progress to file ", progressfile_name, "...\n"))
-    write.table( progress_by_method_by_model, file = progressfile_name, sep = ",", append = TRUE, quote = FALSE,
-                 col.names = FALSE, row.names = FALSE)
+  #' Write progress table to .csv 
+  if( write_progressfile ){
+    cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write progress table to: ", progressfile_name, "...\n")); ptm <- proc.time();
+    #' Make table of all methods we want simulation output for.
+    methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")), nsim = 0, time_elapsed = NA)
+    colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
+    
+    #' Get indices of methods with no output.
+    method_indices_not_incld <- which( !(methods_all_parsed[, "method_name"] %in% methods_included_parsed[, "method_name"]) )
+    progress_by_method_by_model <- cbind(rbind( methods_included_parsed, methods_all_parsed[ method_indices_not_incld, ]),
+                                         modelno = sim_j, id_sim = id_sim )
+    if(!file.exists( progressfile_name )){
+      cat(paste0("\nNOTE: file: ", progressfile_name, " does not exist. \nCreating file and saving...\n\n"))
+      write.csv( progress_by_method_by_model, file = progressfile_name, row.names = FALSE )
+    }else{
+      cat(paste0("Appending progress to file ", progressfile_name, "...\n"))
+      write.table( progress_by_method_by_model, file = progressfile_name, sep = ",", append = TRUE, quote = FALSE,
+                   col.names = FALSE, row.names = FALSE)
+    }
+    #' Compare output methods to 'methods_all_parsed'
+    cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
+    print( methods_included_parsed );
+    cat(paste0("\n Simulation [ ", sim_j, " ] is missing these outputs:\n"))
+    print( methods_all_parsed[ method_indices_not_incld, ] );
   }
-  #' Compare output methods to 'methods_all_parsed'
-  cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
-  print( methods_included_parsed );
-  cat(paste0("\n Simulation [ ", sim_j, " ] is missing these outputs:\n"))
-  print( methods_all_parsed[ method_indices_not_incld, ] );
-  cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all );
-  cat("\n\n\n\n")
+  
+  #' Save output for each model (so it doesn't disappear in the loop!)
+  if( keep_output_in_environment ){
+    dfs_by_model[[ sim_j ]] <- dfs_out_all;
+    metrics_by_model[[ sim_j ]] <- metrics_all_with_id;
+    metrics_by_model_subsetted[[ sim_j ]] <- metrics_all_with_id_validse;
+  }
+  
+  #' Deallocate memory in models after each loop.
+  if( remove_output_after_sourcing ){
+    dfs_out_j <- NULL;
+    dfs_out_all <- NULL;
+    metrics_by_out_j <- NULL;
+    metrics_by_out_j_subsetted_validse <- NULL; 
+    metrics_all_output <- NULL;
+    metrics_all_output_validse <- NULL;
+    metrics_all_with_id <- NULL;
+    metrics_all_with_id_validse <- NULL;
+  }
+  cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all ); cat("\n\n\n\n");
 }
