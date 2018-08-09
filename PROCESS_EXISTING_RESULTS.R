@@ -14,10 +14,12 @@
 #' [output metrics: "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k"]
 # --------------------------------------------------------------------------- # 
 #' [ 9 August 2018 ] 
-#' > Added settings to customize:
+#' [11 : 45] Added settings to customize:
 #' >> script performance (write_progressfile, write_outputfiles, etc)
 #' >> Memory persistence and deallocation ('keep_output_in_environment', 'remove_output_after_sourcing')
-#' > TODO(michael): update flags for identifying complete separation!
+#' [12 : 15] TODO(michael): update flags for identifying complete separation!
+#' [13 : 32] output references are broken in cases where output objects deleted manually.
+#' Problem: for each model, output() returns list of lists.
 
 library("simulator");
 
@@ -25,11 +27,17 @@ library("simulator");
 batch_no <- 2;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
 simulation_name <- paste0("alloc-simulation-batch-", batch_no, "-of-4");
 results_directory <- paste0("/Users/Moschops/Documents/MSThesis/datasets/batch-", batch_no, "/");
+nsim <- 5010;  #' number of simulations (for pre-allocation)
+
+anyzero <- function( .draw, show.table  = TRUE ){
+  dtable <- table( .draw$Z, .draw$Y )
+  any( dtable == 0 )
+}
 
 ###############################################################################
 #' [0A] Define settings
 ###############################################################################
-timestamp_output <- FALSE;  # Add 'Y-m-d_H-M' to output folder?
+timestamp_output <- TRUE;  # Add 'Y-m-d_H-M' to output folder?
 round_results <- TRUE;  # Round results when writing table to 'digits_to_round_to'?
 digits_to_round_to <- 3;
 
@@ -165,6 +173,17 @@ for( sim_j in 1:num_simulation_models ){
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
   cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
   
+  #' [ NEW 9-Aug-18: Flag conditions by 'separationIndicator' ]
+  if( batch_no %in% 1:2 ){
+    output_allocs_only <- output( simulation, subset = sim_j, methods = alloc_method )
+    output_alloc_names <- sapply( output_allocs_only, function( .Output.obj ){ .Output.obj@method_name })
+    #' matrix 'separation_status' tracks indicator of if separation = TRUE. 
+    separation_status <- matrix( nrow = nsim, ncol = length( output_allocs_only ), dimnames = list( 1:nsim, output_alloc_names ))
+    for( i in seq_along( output_alloc_names ) ){
+      separation_status[, i] <- unlist(lapply( output_allocs_only[[ i ]]@out, anyzero ));
+    }
+  }
+  
   #' Parse model parameters into unique identifier 'id_sim'
   index_exclude <- which( sapply(model( simulation )[[ sim_j ]]@params, function(.x){length(unlist(.x)) > 1} )) # exclude non-scalars
   id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
@@ -198,7 +217,13 @@ for( sim_j in 1:num_simulation_models ){
     dfs_out_j[[i]]$power.ci <- with( dfs_out_j[[i]], 0 < cilower | 0 > ciupper )
     dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
-    dfs_out_j[[i]]$segt1k <- with( dfs_out_j[[i]], se > large_se_breakpoint | abs( est ) > large_est_breakpoint )
+    #' [ NEW 9-Aug-18: add in separation status indicator, computed earlier in 'separation_status' matrix ]
+    alloc_method_output_j <- methods_included_parsed[i ,"alloc_method"]
+    if( batch_no %in% 1:2 ){
+      dfs_out_j[[i]]$separation_status <- separation_status[, alloc_method_output_j]
+    }else{
+      dfs_out_j[[i]]$separation_status <- FALSE;
+    }
     #' Get simulation metrics: 
     #' > 'time_elapsed' := overall time computing each method, 
     methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
@@ -206,7 +231,7 @@ for( sim_j in 1:num_simulation_models ){
     methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
     #' Compute means of relevant statistics
     indices_colMeans <- which( dimnames(dfs_out_j[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", 
-                                                                    "power.rerand","power.ci", "coverage", "bias", "segt1k"))
+                                                                    "power.rerand","power.ci", "coverage", "bias", "separation_status"))
     metrics_by_out_j[[i]] <- c(colMeans(dfs_out_j[[i]][, indices_colMeans]),
                                median_bias = median( dfs_out_j[[i]]$bias ),
                                nsim = dim( dfs_out_j[[i]] )[1], 
@@ -214,12 +239,9 @@ for( sim_j in 1:num_simulation_models ){
                                modelno = sim_j, 
                                method_name = output_j[[i]]@method_name);
     
-    #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM!)
-    if( batch_no in 1:2 ){
-      #' Subset on 'segt1k' := indicator variable supposed to catch simulations with complete separation.
-      dfs_out_j_subsetted[[i]] <- subset( dfs_out_j[[ i ]], subset = segt1k == FALSE, 
-                                          select = c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias"))
-      
+    #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
+    if( batch_no %in% 1:2 ){
+      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ !dfs_out_j[[ i ]]$separation_status, indices_colMeans ]
       metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
                                                    median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
                                                    nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
@@ -247,7 +269,7 @@ for( sim_j in 1:num_simulation_models ){
   cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
   metrics_all_output <- do.call( rbind, metrics_by_out_j )
   if( round_results ){ #' note: disabling scientific notation
-    variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias", "segt1k")
+    variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias", "separation_status")
     metrics_all_output[, variables_to_round ] <- 
       format(round(as.numeric(metrics_all_output[, variables_to_round ]), digits_to_round_to ), scientific = FALSE)
   }
