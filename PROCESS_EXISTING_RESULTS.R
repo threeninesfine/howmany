@@ -23,8 +23,8 @@ library("simulator");
 
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
 batch_no <- 2;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
-simulation_name <- "alloc-simulation-batch-2-of-4"
-results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
+simulation_name <- paste0("alloc-simulation-batch-", batch_no, "-of-4");
+results_directory <- paste0("/Users/Moschops/Documents/MSThesis/datasets/batch-", batch_no, "/");
 
 ###############################################################################
 #' [0A] Define settings
@@ -78,7 +78,7 @@ if(!exists( "simulation" )){
     cat(paste0("Simulation file 'sim-", simulation_name, ".Rdata' exists... loading from .Rdata file... \n"))
     simulation <- load_simulation(name = simulation_name, dir = results_directory)
   }else{
-    simulation_test <- get_simulation_with_all_files(dir = results_directory)
+    simulation <- get_simulation_with_all_files(dir = results_directory)
   }
 }
 
