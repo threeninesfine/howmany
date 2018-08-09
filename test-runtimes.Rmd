@@ -1,0 +1,65 @@
+---
+title: "Efficient R Programming \\ Chapter 3"
+author: "Michael Flanagin  \\ flanna@uw.edu"
+date: "7/31/2018"
+classoption: portrait
+header-includes:
+  - \usepackage[table]{xcolor}
+  - \usepackage{booktabs}
+  - \usepackage{caption}
+output:
+  pdf_document:
+    fig_caption: yes
+    keep_tex: yes
+    number_sections: yes
+  html_document:
+    fig_caption: yes
+    force_captions: yes
+    highlight: pygments
+    number_sections: yes
+    theme: cerulean
+---
+  
+```{r libraries, eval = TRUE, cache = TRUE, echo = TRUE, message = FALSE}
+library("microbenchmark")
+library("compiler")
+library("memoise")
+library("pryr")
+library("profvis")
+```
+
+
+# Format model parameters
+```{r 0-test-list-initialization, eval = TRUE, cache = TRUE, echo = TRUE}
+library("microbenchmark")
+f0 <- function( n ){
+  result_list <- vector( mode = "list", length = n )
+  for( i in seq_along( LETTERS[1:n] )){
+    result_list[[ i ]] <- LETTERS[ i ];
+  }
+}
+f1 <- function( n ){
+  result_list <- list();
+  for( i in seq_along( LETTERS[1:n] )){
+    result_list[[ i ]] <- LETTERS[ i ];
+  }
+}
+f2 <- function( n ){
+  result_list <- lapply( LETTERS[1:n], function( .letter ) return( .letter ) )
+}
+f3 <- function( n ){
+  result_list <- list();
+  result_list <- lapply( LETTERS[1:n], function( .letter ) return( .letter ) )
+}
+f4 <- function( n ){
+  result_list <- vector( mode = "list", length = n );
+  result_list <- lapply( LETTERS[1:n], function( .letter ) return( .letter ) )
+}
+
+microbenchmark(f0( n = 26 ), f1( n = 26 ), f2( n = 26 ), f3( n = 26 ), f4( n = 26 ))
+
+# Conclusion:
+#   > Initialize lists with vector( mode = "list", length = n )
+#   > Use for() loop to populate list
+#   ( Doesn't matter if list populated with lapply() )
+```
