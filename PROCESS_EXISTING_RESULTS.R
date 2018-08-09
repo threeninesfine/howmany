@@ -6,9 +6,21 @@
 library("simulator");
 
 ###############################################################################
-#' [0] Define settings
+#' [0A] Define settings
 ###############################################################################
-timestamp_output <- FALSE
+timestamp_output <- FALSE;  # Add 'Y-m-d_H-M' to output folder?
+round_results <- TRUE;  # Round results when writing table to 'digits_to_round_to'?
+digits_to_round_to <- 3;
+
+write_progressfile <- FALSE;  # Write progress file?
+write_parameterfile <- FALSE;  # Write parameter file?
+
+large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
+large_est_breakpoint <- 40; # break point for calling an estimate 'large' (aka complete/quasi-separation)
+
+###############################################################################
+#' [0B] Specify file / directory I/O 
+###############################################################################
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
 simulation_name <- "alloc-simulation-batch-2-of-4"
 results_directory <- "/Users/Moschops/Documents/MSThesis/datasets/results/"
@@ -19,12 +31,11 @@ if( timestamp_output ){
     dir.create( output_directory );
   }
 }else{
-  output_directory <- paste0( results_directory, "../../results-NEW/" )
+  output_directory <- paste0( results_directory, "../../results-NEWEST/" )
   if(!dir.exists( output_directory )){
     dir.create( output_directory );
   }
 }
-
 
 #' [ 'metricfile_name' contains evaluations of processed simulation output ]
 metricfile_name <- paste0( output_directory, "metrics-", simulation_name, ".csv" ); 
@@ -38,10 +49,6 @@ parameterfile_name <- paste0( output_directory, "parameters-", simulation_name, 
 outputfile_name <- paste0( output_directory, "output-", simulation_name, ".csv");
 
 
-round_results <- TRUE;
-large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
-large_est_breakpoint <- 40; # break point for calling an estimate 'large' (aka complete/quasi-separation)
-digits_to_round_to <- 3;
 
 ###############################################################################
 #' [1] Load in existing simulation
@@ -65,7 +72,10 @@ adjustment <- c("ADJ", "UN")
 #' List of valid output method names
 pastey <- function( ... ){ paste( ..., sep = "_")}
 method_names_short <- do.call(pastey, expand.grid( alloc_method[1:3], analysis_method[1], adjustment ))
+# c( "CR_REG_ADJ", "SBR_REG_ADJ", "CAA-MI-2-PBA-0.70_REG_ADJ" )
+# c( "CR_REG_UN", "SBR_REG_UN", "CAA-MI-2-PBA-0.70_REG_UN" )
 method_names_rerand <- do.call(pastey, expand.grid( alloc_method[3], analysis_method[2], adjustment ))
+# c( "CAA-MI-2-PBA-0.70_RERAND_ADJ", "CAA-MI-2-PBA-0.70_RERAND_UN" )
 method_names_deterministic <- do.call(pastey, expand.grid( alloc_method[4], analysis_method, adjustment ))
 
 #' We will attempt to process these method outputs:
@@ -78,10 +88,10 @@ methods_to_process <- c(
 #' We will track progress on these methods:
 methods_all <- c( method_names_short, method_names_rerand, method_names_deterministic )
 
-
 ###############################################################################
 #' [2] Writing table of parameters by 'modelno' and 'id_sim'
 ###############################################################################
+
 cat("Creating parameter table for simulation models and writing to ", parameterfile_name, "... \n"); ptm <- proc.time();
 #' This is a data frame of parameters by 'modelno'
 sapply( 1:length( simulation@model_refs ), function( .index ){ simulation@model_refs[[ .index ]]@dir <<- simulation@dir; })
@@ -92,26 +102,31 @@ params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ unlis
 params_by_model$id_sim <- apply( params_by_model, 1, function( .string ) paste0( .string, collapse = "-" ) )
 # 'model_no' is a simpler (integer) lookup of models for this simulation.
 params_by_model$model_no <- dimnames( params_by_model )[[1]]
-write.csv( params_by_model, file = parameterfile_name, row.names = FALSE )
-cat(paste0("Success! parameter table written to ", parameterfile_name, ". \nElapsed time: \n")); print( proc.time() - ptm );
-
-
-###############################################################################
-#' [2] Simulation progress table by 'id_sim'
-###############################################################################
-cat("Creating progress table for simulation results... \n"); ptm <- proc.time();
-methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")))
-colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
-
-progress_table <- data.frame( do.call("rbind", rep(list( methods_all_parsed ), times = length(model( simulation )))) )
-dimnames( progress_table )[[ 2 ]] <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
-progress_table$modelno <- do.call("c", sapply(1:length(model( simulation )), function(.x) rep( .x, length( methods_all )), simplify = FALSE))
-progress_table$id_sim <- do.call("c", sapply( params_by_model$id_sim, function(.x) rep( .x, length( methods_all )), simplify = FALSE))
-cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+if( write_parameterfile ){
+  write.csv( params_by_model, file = parameterfile_name, row.names = FALSE )
+  cat(paste0("Success! parameter table written to ", parameterfile_name, ". \n"))
+}
+cat("Elapsed time: \n"); print( proc.time() - ptm );
 
 # Make outputfile_names 
 # outputfile_names <- paste0( params_by_model$id_sim, "-output.csv" ) # old version: just have model here now
 outputfile_names <- paste0( simulation@name, "-model-", params_by_model$model_no, "-output.csv" )
+
+###############################################################################
+#' [2] Simulation progress table by 'id_sim'
+###############################################################################
+if( write_progressfile ){
+  cat("Creating progress table for simulation results... \n"); ptm <- proc.time();
+  methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")))
+  colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
+  
+  progress_table <- data.frame( do.call("rbind", rep(list( methods_all_parsed ), times = length(model( simulation )))) )
+  dimnames( progress_table )[[ 2 ]] <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
+  progress_table$modelno <- do.call("c", sapply(1:length(model( simulation )), function(.x) rep( .x, length( methods_all )), simplify = FALSE))
+  progress_table$id_sim <- do.call("c", sapply( params_by_model$id_sim, function(.x) rep( .x, length( methods_all )), simplify = FALSE))
+  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+}
+
 
 ###############################################################################
 #' [2] Process results
@@ -126,7 +141,7 @@ statistic_names <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bia
 metrics_df_names <- c("adjusted","rerandomized", "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "segt1k")
 # --------------------------------------------------------------------------- # 
 
-num_simulation_models <- length(model( simulation ))  # number of models with data to be analyzed
+num_simulation_models <- length(model( simulation, reference = TRUE ))  # number of models with data to be analyzed
 for( sim_j in 1:num_simulation_models ){
   cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
   tryCatch({
