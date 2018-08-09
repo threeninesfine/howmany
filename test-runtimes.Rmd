@@ -63,3 +63,49 @@ microbenchmark(f0( n = 26 ), f1( n = 26 ), f2( n = 26 ), f3( n = 26 ), f4( n = 2
 #   > Use for() loop to populate list
 #   ( Doesn't matter if list populated with lapply() )
 ```
+
+```{r 1-eval-memory-used, eval = TRUE, cache = TRUE, echo = TRUE}
+# Evaluate memory usage by R in the current session
+pryr::mem_used()
+#' TODO(michael): Read and review memory usage here
+#' ref: http://adv-r.had.co.nz/memory.html
+```
+
+```{r 2-test-unlist-lapply-vs-sapply, eval = TRUE, cache = TRUE, echo = TRUE}
+f0 <- function( n = 1e4 ){
+  unlist(lapply( 1:n, function( .seed ){ set.seed( .seed ); rnorm(1) }))
+}
+f1 <- function( n = 1e4 ){
+  sapply( 1:n, function( .seed ){ set.seed( .seed ); rnorm(1) })
+}
+microbenchmark( res0 <- f0(), res1 <- f1() )
+identical( res0, res1 )
+```
+
+
+```{r 3-test-subset-vs-vector-of-logicals, eval = TRUE, cache = TRUE, echo = TRUE}
+n <- 1e4;
+set.seed( 1515 )
+foo <- data.frame(X = rnorm( n ), Y = sample(c(TRUE, FALSE), size = n, replace = TRUE ));
+  
+f0 <- function( ){
+  subset( foo, subset = foo$Y, select = "X" )
+}
+f1 <- function( ){
+  #' [ using indexing ]
+  foo$X[ foo$Y ]
+}
+f2 <- function( ){
+  #' [ using indexing, matrix notation ]
+  foo[ foo$Y, "X" ]
+}
+microbenchmark( res0 <- f0(), res1 <- f1(), res2 <- f2() )
+# Unit: microseconds
+#          expr     min       lq     mean   median       uq      max neval cld
+#  res0 <- f0() 449.379 508.3530 589.1448 541.0665 574.0250 2765.687   100   b
+#  res1 <- f1()  84.865  96.9575 129.4857 101.7675 109.0645 1906.749   100  a 
+#  res2 <- f2() 103.123 109.6425 133.2046 112.7205 120.7095 1631.206   100  a 
+identical( res0, res1 )
+#' Conclusion:
+#' [1] using subset() is slow as fuck.
+```
