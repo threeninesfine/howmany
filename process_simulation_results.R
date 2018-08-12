@@ -13,7 +13,7 @@
 #' [input values: "est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations"] 
 #' [output metrics: "power.pvalue", "power.rerand","power.ci", "coverage", "bias", "separation_status"]
 # --------------------------------------------------------------------------- # 
-#' [ 9 August 2018 ] 
+#' [ 9 August 2018 (Thursday) ] 
 #' [11 : 45] Added settings to customize:
 #' >> script performance (write_progressfile, write_outputfiles, etc)
 #' >> Memory persistence and deallocation ('keep_output_in_environment', 'remove_output_after_sourcing')
@@ -23,15 +23,22 @@
 #' [ 14:33 ] Running batch-2 processing, took on avg 6sec to run code (vs 120sec!) 
 #' [ 14:34 ] Running batch-1 processing
 # --------------------------------------------------------------------------- # 
+#' [ 12 August 2018 (Sunday) ]
+#' [ 16:30 ] added toggle `load_simulation_from_all_files` to load in new simulation output (rerand adjusted ests)
 
 library("simulator");
 
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-batch_no <- 1;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
+batch_no <- 2;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
 simulation_name <- paste0("alloc-simulation-batch-", batch_no, "-of-4");
 results_directory <- paste0("/Users/Moschops/Documents/MSThesis/datasets/batch-", batch_no, "/");
 nsim <- 5010;  #' number of simulations (for pre-allocation)
 
+#' [ Load in simulation from simulation .Rdata object, or from all files in folder? ]
+load_simulation_from_all_files <- TRUE
+
+#' [ anyzero() tests each Y:Z outcome:treatment allocation pair for separation.    ]
+#' [ GLM will not converge if any cell of the 2x2 (Z x Y) contingency table is 0.  ]
 anyzero <- function( .draw, show.table  = TRUE ){
   dtable <- table( .draw$Z, .draw$Y )
   any( dtable == 0 )
@@ -49,10 +56,7 @@ write_parameterfile <- FALSE;  # Write parameter file to .csv?
 write_outputfiles <- FALSE;  # Write raw output files to .csv after processing from .Rdata?
 
 keep_output_in_environment <- TRUE;  # make list of lists containing output?
-remove_output_after_sourcing <- TRUE;  # de-allocate variables after sourcing?
-
-large_se_breakpoint <- 1000;  # break point for calling SE 'large' (aka complete/quasi-separation)
-large_est_breakpoint <- 40; # break point for calling an estimate 'large' (aka complete/quasi-separation)
+remove_output_after_sourcing <- FALSE;  # de-allocate variables after sourcing?
 
 ###############################################################################
 #' [0B] Specify file / directory I/O 
@@ -84,13 +88,11 @@ outputfile_name <- paste0( output_directory, "output-", simulation_name, ".csv")
 ###############################################################################
 #' [1] Load in existing simulation
 ###############################################################################
-if(!exists( "simulation" )){
-  if(file.exists(paste0(results_directory, "files/sim-", simulation_name, ".Rdata"))){
-    cat(paste0("Simulation file 'sim-", simulation_name, ".Rdata' exists... loading from .Rdata file... \n"))
-    simulation <- load_simulation(name = simulation_name, dir = results_directory)
-  }else{
-    simulation <- get_simulation_with_all_files(dir = results_directory)
-  }
+if( !load_simulation_from_all_files ){
+  cat(paste0("Simulation file 'sim-", simulation_name, ".Rdata' exists... loading from .Rdata file... \n"))
+  simulation <- load_simulation(name = simulation_name, dir = results_directory)
+}else{
+  simulation <- get_simulation_with_all_files(dir = results_directory)
 }
 
 ###############################################################################
@@ -364,4 +366,11 @@ for( sim_j in 1:num_simulation_models ){
     metrics_all_with_id_validse <- NULL;
   }
   cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all ); cat("\n\n\n\n");
+}
+
+if( keep_output_in_environment ){
+  cat("The following variables are stored in the environment:\n")
+  cat("`dfs_by_model`              : list of data.frames of all results.\n")
+  cat("`metrics_by_model`          : list of data.frames of all metrics.\n")
+  cat("`metrics_by_model_subsetted`: list of data.frames of all metrics for subsetted simulations.\n")
 }
