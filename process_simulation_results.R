@@ -37,6 +37,11 @@ nsim <- 5010;  #' number of simulations (for pre-allocation)
 #' [ Load in simulation from simulation .Rdata object, or from all files in folder? ]
 load_simulation_from_all_files <- TRUE
 
+###############################################################################
+#' [0AA] Define settings to identify separation status 
+###############################################################################
+use_glm_convergence_criterion <- TRUE;  # test glm() for convergence to detect separation?
+
 #' [ anyzero() tests each Y:Z outcome:treatment allocation pair for separation.    ]
 #' [ GLM will not converge if any cell of the 2x2 (Z x Y) contingency table is 0.  ]
 anyzero <- function( .draw, show.table  = TRUE ){
@@ -182,6 +187,29 @@ for( sim_j in 1:num_simulation_models ){
   if( batch_no %in% 1:2 ){
     output_allocs_only <- output( simulation, subset = sim_j, methods = alloc_method )
     output_alloc_names <- sapply( output_allocs_only, function( .Output.obj ){ .Output.obj@method_name })
+    draws_look <- draws( simulation, subset = sim_j )
+    
+    #' [ NEW 12-Aug-18: Flag conditions by 'glm_converged' ]
+    if( use_glm_convergence_criterion ){
+      #' [ test all draws for glm convergence ]
+      glm_convergence_status <- matrix( nrow = nsim, ncol = length( output_allocs_only ), 
+                                     dimnames = list( 1:nsim, output_alloc_names ))
+      
+      cat(paste0("[ Model ", sim_j, " ][-|       ] Checking convergence status... [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+      for( sim_i in seq_len( nsim ) ){
+        for( alloc_j in seq_along( output_alloc_names ) ){
+          df_ij <- data.frame(output_allocs_only[[ alloc_j ]]@out[[ sim_i ]][1:2])
+          df_ij$X <- draws_look@draws[[ sim_i ]]$X
+          myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
+          glm_convergence_status[ sim_i, alloc_j ] <- glm_test$converged
+          if( !glm_test$converged ){
+            cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE.\n"))
+          }
+        }
+      }
+      cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
+    }
+
     #' matrix 'separation_status' tracks indicator of if separation = TRUE. 
     separation_status <- matrix( nrow = nsim, ncol = length( output_allocs_only ), dimnames = list( 1:nsim, output_alloc_names ))
     for( i in seq_along( output_alloc_names ) ){
@@ -226,8 +254,14 @@ for( sim_j in 1:num_simulation_models ){
     alloc_method_output_j <- methods_included_parsed[i ,"alloc_method"]
     if( batch_no %in% 1:2 ){
       dfs_out_j[[i]]$separation_status <- separation_status[, alloc_method_output_j]
+      if( use_glm_convergence_criterion ){
+        dfs_out_j[[i]]$glm_converged <- glm_convergence_status[, alloc_method_output_j]
+      }
     }else{
       dfs_out_j[[i]]$separation_status <- FALSE;
+      if( use_glm_convergence_criterion ){
+        dfs_out_j[[i]]$glm_converged <- FALSE;
+      }
     }
     #' Get simulation metrics: 
     #' > 'time_elapsed' := overall time computing each method, 
@@ -246,7 +280,7 @@ for( sim_j in 1:num_simulation_models ){
     
     #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
     if( batch_no %in% 1:2 ){
-      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ !dfs_out_j[[ i ]]$separation_status, indices_colMeans ]
+      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ !dfs_out_j[[ i ]]$glm_converged, indices_colMeans ]
       metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
                                                    median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
                                                    nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
