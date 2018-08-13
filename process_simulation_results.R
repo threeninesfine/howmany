@@ -183,6 +183,13 @@ for( sim_j in 1:num_simulation_models ){
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
   cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
   
+  #' Parse 'method_name' strings into {"method_name", "alloc_method", "analysis_method", "adjustment", "nsim"}
+  output_method_names <- sapply( output_j, function( .object ){ .object@method_name }) 
+  methods_included_parsed <- cbind( output_method_names, 
+                                    t(sapply( strsplit( output_method_names, split = "_"), function(.listobj){unlist( .listobj )})),
+                                    nsim = 0, time_elapsed = NA )
+  colnames( methods_included_parsed ) <- c("method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
+  
   #' [ NEW 9-Aug-18: Flag conditions by 'separationIndicator' ]
   if( batch_no %in% 1:2 ){
     output_allocs_only <- output( simulation, subset = sim_j, methods = alloc_method )
@@ -192,18 +199,37 @@ for( sim_j in 1:num_simulation_models ){
     #' [ NEW 12-Aug-18: Flag conditions by 'glm_converged' ]
     if( use_glm_convergence_criterion ){
       #' [ test all draws for glm convergence ]
-      glm_convergence_status <- matrix( nrow = nsim, ncol = length( output_allocs_only ), 
-                                     dimnames = list( 1:nsim, output_alloc_names ))
+      adjusted_alloc_names <- methods_included_parsed[ methods_included_parsed[,"adjustment"] == "ADJ", "alloc_method"]
+      glm_convergence_status_adj <- matrix( nrow = nsim, ncol = length( output_alloc_names ), 
+                                            dimnames = list( 1:nsim, output_alloc_names ))
+      unadjusted_alloc_names <- methods_included_parsed[ methods_included_parsed[,"adjustment"] == "UN", "alloc_method"]
+      glm_convergence_status_un <- matrix( nrow = nsim, ncol = length( unadjusted_alloc_names ), 
+                                              dimnames = list( 1:nsim, unadjusted_alloc_names ))
       
       cat(paste0("[ Model ", sim_j, " ][-|       ] Checking convergence status... [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+      #' [ NOTE: should iterate over rows of `methods_included_parsed`. ]
       for( sim_i in seq_len( nsim ) ){
         for( alloc_j in seq_along( output_alloc_names ) ){
           df_ij <- data.frame(output_allocs_only[[ alloc_j ]]@out[[ sim_i ]][1:2])
           df_ij$X <- draws_look@draws[[ sim_i ]]$X
           myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
-          glm_convergence_status[ sim_i, alloc_j ] <- glm_test$converged
+          glm_convergence_status_adj[ sim_i, alloc_j ] <- glm_test$converged
           if( !glm_test$converged ){
-            cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE.\n"))
+            cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE (ADJUSTED).\n"))
+          }
+          #' [ see if unadjusted estimates are computed. if so, then check convergence status. ]
+          if( output_allocs_only[[ alloc_j ]]@method_name == "CR" ){
+            myTryCatch( glm_test <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+            glm_convergence_status_un[ sim_i, "CR" ] <- glm_test$converged
+            if( !glm_test$converged ){
+              cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE (UNADJUSTED).\n"))
+            }
+          }else if( output_allocs_only[[ alloc_j ]]@method_name == "SBR" ){
+            myTryCatch( glm_test <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+            glm_convergence_status_un[ sim_i, "SBR" ] <- glm_test$converged
+            if( !glm_test$converged ){
+              cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE (UNADJUSTED).\n"))
+            }
           }
         }
       }
@@ -222,12 +248,7 @@ for( sim_j in 1:num_simulation_models ){
   id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
   cat(paste0("Unique ID for simulation: ", id_sim, "\n\n")); 
   
-  #' Parse 'method_name' strings into {"method_name", "alloc_method", "analysis_method", "adjustment", "nsim"}
-  output_method_names <- sapply( output_j, function( .object ){ .object@method_name }) 
-  methods_included_parsed <- cbind( output_method_names, 
-                                    t(sapply( strsplit( output_method_names, split = "_"), function(.listobj){unlist( .listobj )})),
-                                    nsim = 0, time_elapsed = NA )
-  colnames( methods_included_parsed ) <- c("method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
+
   
   cat(paste0("[ Model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
   cat(paste0("[ Model ", sim_j, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
