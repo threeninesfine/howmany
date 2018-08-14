@@ -12,14 +12,12 @@ compile_functions <- TRUE;  # compile base functions?
 #' ------------------------ [ 0. Conditions ] ------------------------------- #
 # --------------------------------------------------------------------------- #
 #' [ step 0: set file management ]
+batch_number <- 2
 #' Batch 1 will have: outcome = "binary" & predictor = "binary"
-# simulation_name <- "alloc-simulation-batch-1-of-4"
 #' Batch 2 will have: outcome = "binary" & predictor = "continuous"
-simulation_name <- "alloc-simulation-batch-2-of-4"
 #' Batch 3 will have: outcome = "continuous" & predictor = "binary"
-# simulation_name <- "alloc-simulation-batch-3-of-4"
 #' Batch 4 will have: outcome = "continuous" & predictor = "continuous"
-# simulation_name <- "alloc-simulation-batch-4-of-4"
+simulation_name <- paste0("alloc-simulation-batch-", batch_number, "-of-4")
 
 sim_trial_size = c( 96 )
 sim_outcome_type = c( "binary" )
@@ -38,7 +36,7 @@ sim_alpha = c( 0.05 )
 # --------------------------------------------------------------------------- #
 
 #' [ 'results_directory' contains folder 'files' with .Rdata model, draw, output, evals ] 
-results_directory <- "../datasets/results/"
+results_directory <- paste0("../datasets/batch-", batch_number, "/")
 #' [ 'metricfile_name' contains model, draw, output, evaluation info ] 
 metricfile_name <- paste0( results_directory, "metrics-simulation.csv" ); 
 simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M") #' [ timestamp ]
