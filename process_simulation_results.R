@@ -49,6 +49,22 @@ anyzero <- function( .draw, show.table  = TRUE ){
   any( dtable == 0 )
 }
 
+#' [ custom tryCatch() function ]
+# custom tryCatch to return result and warnings -- http://stackoverflow.com/a/24569739/2271856
+myTryCatch <- function(expr) {
+  warn <- err <- NULL
+  value <- withCallingHandlers(
+    tryCatch(expr, error=function(e) {
+      err <<- e
+      NULL
+    }), warning=function(w) {
+      warn <<- w
+      invokeRestart("muffleWarning")
+    })
+  list(value=value, warning=warn, error=err)
+}
+
+
 ###############################################################################
 #' [0A] Define settings
 ###############################################################################
@@ -176,7 +192,8 @@ if( keep_output_in_environment ){
   metrics_by_model_subsetted <- vector( mode = "list", length = num_simulation_models );
 }
 for( sim_j in 1:num_simulation_models ){
-  cat(paste0("[ Model ", sim_j, " ][-|       ] Loading output from simulation [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+  cat(paste0("[ Model ", sim_j, " of ", num_simulation_models," ][-|       ] Loading output from simulation [ ", 
+             simulation@name, " ]...\n")); ptm.all <- proc.time();
   #' Try loading simulation output for model 'sim_j' with output names in 'methods_to_process'
   tryCatch({
     output_j <- output( simulation, subset = sim_j, methods = methods_to_process )
@@ -200,8 +217,8 @@ for( sim_j in 1:num_simulation_models ){
     if( use_glm_convergence_criterion ){
       #' [ test all draws for glm convergence ]
       adjusted_alloc_names <- methods_included_parsed[ methods_included_parsed[,"adjustment"] == "ADJ", "alloc_method"]
-      glm_convergence_status_adj <- matrix( nrow = nsim, ncol = length( output_alloc_names ), 
-                                            dimnames = list( 1:nsim, output_alloc_names ))
+      glm_convergence_status_adj <- matrix( nrow = nsim, ncol = length( adjusted_alloc_names ), 
+                                            dimnames = list( 1:nsim, adjusted_alloc_names ))
       unadjusted_alloc_names <- methods_included_parsed[ methods_included_parsed[,"adjustment"] == "UN", "alloc_method"]
       glm_convergence_status_un <- matrix( nrow = nsim, ncol = length( unadjusted_alloc_names ), 
                                               dimnames = list( 1:nsim, unadjusted_alloc_names ))
@@ -276,7 +293,11 @@ for( sim_j in 1:num_simulation_models ){
     if( batch_no %in% 1:2 ){
       dfs_out_j[[i]]$separation_status <- separation_status[, alloc_method_output_j]
       if( use_glm_convergence_criterion ){
-        dfs_out_j[[i]]$glm_converged <- glm_convergence_status[, alloc_method_output_j]
+        if( methods_included_parsed[ i, "adjustment" ] == "ADJ" ){
+          dfs_out_j[[i]]$glm_converged <- glm_convergence_status_adj[, alloc_method_output_j]
+        }else{
+          dfs_out_j[[i]]$glm_converged <- glm_convergence_status_un[, alloc_method_output_j]
+        }
       }
     }else{
       dfs_out_j[[i]]$separation_status <- FALSE;
@@ -301,7 +322,7 @@ for( sim_j in 1:num_simulation_models ){
     
     #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
     if( batch_no %in% 1:2 ){
-      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ !dfs_out_j[[ i ]]$glm_converged, indices_colMeans ]
+      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ dfs_out_j[[ i ]]$glm_converged, indices_colMeans ]
       metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
                                                    median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
                                                    nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
