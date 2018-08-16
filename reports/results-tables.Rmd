@@ -123,6 +123,14 @@ cat("Batch 2: bias (final subsetting)\n")
 with( metrics_batch2_sub, summary( bias ))
 ```
 
+```{r assert_that, cache = FALSE, echo = TRUE}
+#' [ assert_that( expr, errmsg ) returns `errmsg` if expr is NOT true ]
+assert_that <- function( expr, errmsg ){
+  if( !all( expr ) )
+    stop( errmsg, call. = FALSE )
+}
+
+```
 Here we define make_summary_table().
 ```{r summary_table, cache = FALSE, echo = TRUE}
 make_summary_table <- function( metric_df = metrics_batch1,
@@ -199,6 +207,12 @@ make_summary_tables_adj_and_unadj_sorted <-
             table_colnames = c("CR", "SBR", "CAA_model", "CAA_rerand", "n", "bZ", "bX", "Pr( Y )", "Pr( X )"),
             sort_by_vars = c("n", "Pr( Y )", "Pr( X )", "bZ", "bX") )
 {
+  #' [0] Assertions
+  assert_that( sort_by_vars %in% table_colnames, 
+               errmsg = "All variables in `sort_by_vars` must be in `table_colnames`." )
+  assert_that( parameter_names %in% names( metric_df ), 
+               errmsg = "All variables in `parameter_names` must be in data.frame `metric_df`." )
+    
   #' [1] Get adjusted and unadjusted summary tables
   outdf_adj <- make_summary_table( metric_df = metric_df, metric = metric, get_adj_ests = TRUE, round_digits = round_digits,
                                    parameter_names = parameter_names, table_colnames = table_colnames )
@@ -208,9 +222,8 @@ make_summary_tables_adj_and_unadj_sorted <-
   #' [2] Sort rows by variables: 'sort_by_vars'
   col_indices_sort_variables <- sapply( sort_by_vars, function( .varname ){ which( table_colnames == .varname ) })
   row_indices_sorted <- do.call( order, outdf_adj[, col_indices_sort_variables ] )
-  colnames( row_indices_sorted )[[1]][ seq_along( sort_by_vars ) ] <- sort_by_vars  # re-write sorted vars
   
-  #' [3] Start folding 'adjusted' in to 'unadjusted'
+  #' [3] Make table of [{model parameters, 'adjusted':'unadjusted' ests by randomization type.}]
   outdf_all <- cbind( modelno = outdf_adj$modelno,
                       outdf_adj[, col_indices_sort_variables ],
                       CR_adj = outdf_adj$CR, CR_un = outdf_un$CR,
@@ -218,8 +231,11 @@ make_summary_tables_adj_and_unadj_sorted <-
                       CAA_model_adj = outdf_adj$CAA_model, CAA_model_un = outdf_un$CAA_model,
                       CAA_rerand_adj = outdf_adj$CAA_rerand, CAA_rerand_un = outdf_un$CAA_rerand )
   
-  #' [4] Return estimates in sorted order.
-  return( outdf_all[ row_indices_sorted, ] )
+  #' [4] Exclude certain parameters. 
+  col_indices_to_exclude <- which( dimnames( outdf_all)[[2]] %in% c("modelno", "CAA_rerand_un") )
+  
+  #' [5] Return estimates in sorted order, excluding variables in `col_indices_to_exclude`.
+  return( outdf_all[ row_indices_sorted, - col_indices_to_exclude ] )
 }
 ```
 

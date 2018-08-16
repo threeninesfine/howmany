@@ -25,11 +25,14 @@
 # --------------------------------------------------------------------------- # 
 #' [ 12 August 2018 (Sunday) ]
 #' [ 16:30 ] added toggle `load_simulation_from_all_files` to load in new simulation output (rerand adjusted ests)
+# --------------------------------------------------------------------------- # 
+#' [ 14 August 2018 (Tuesday) ]
+#' [ 09:25] Final modifications to `glm_converged` toggle. Focused on using column names to access.
 
 library("simulator");
 
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-batch_no <- 2;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
+batch_no <- 1;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
 simulation_name <- paste0("alloc-simulation-batch-", batch_no, "-of-4");
 results_directory <- paste0("/Users/Moschops/Documents/MSThesis/datasets/batch-", batch_no, "/");
 nsim <- 5010;  #' number of simulations (for pre-allocation)
@@ -63,6 +66,29 @@ myTryCatch <- function(expr) {
     })
   list(value=value, warning=warn, error=err)
 }
+
+#'[ test_glm_convergence_both_adj_unadj() returns convergence result to glm(), adjusting for X if `adjustX` is TRUE. ]
+test_glm_convergence <- function( drawobj, outobj, adjustX = TRUE){
+  df_ij <- data.frame( outobj[1:2] )
+  if( adjustX ){
+    df_ij$X <- drawobj$X 
+    myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
+  }else{
+    myTryCatch( glm_test <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+  }
+  return( glm_test$converged )
+}
+
+#'[ test_glm_convergence_both_adj_unadj() returns convergence result to glm() for both unadjusted and adjusted models. ]
+test_glm_convergence_both_adj_unadj <- function( drawobj, outobj ){
+  df_ij <- data.frame( outobj[1:2] )
+  df_ij$X <- drawobj$X 
+  myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
+  myTryCatch( glm_test_un <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+  return(c(adj = glm_test$converged,
+           un = glm_test_un$converged))
+}
+
 
 
 ###############################################################################
@@ -184,24 +210,25 @@ if( write_progressfile ){
 ###############################################################################
 #' [2] Process results
 ###############################################################################
-
+#' [ `alloc_methods` are the allocation methods for evaluation ]
+alloc_methods <- c("CR", "SBR", "CAA-MI-2-PBA-0.70", "CAA-MI-2-PBA-1.00"); 
 num_simulation_models <- length(model( simulation, reference = TRUE ))  # number of models with data to be analyzed
 if( keep_output_in_environment ){
   dfs_by_model <- vector( mode = "list", length = num_simulation_models );
   metrics_by_model <- vector( mode = "list", length = num_simulation_models );
   metrics_by_model_subsetted <- vector( mode = "list", length = num_simulation_models );
 }
-for( sim_j in 1:num_simulation_models ){
-  cat(paste0("[ Model ", sim_j, " of ", num_simulation_models," ][-|       ] Loading output from simulation [ ", 
+for( model_i in 1:num_simulation_models ){
+  cat(paste0("[ Model ", model_i, " of ", num_simulation_models," ][-|       ] Loading output from simulation [ ", 
              simulation@name, " ]...\n")); ptm.all <- proc.time();
-  #' Try loading simulation output for model 'sim_j' with output names in 'methods_to_process'
+  #' Try loading simulation output for model 'model_i' with output names in 'methods_to_process'
   tryCatch({
-    output_j <- output( simulation, subset = sim_j, methods = methods_to_process )
+    out_model_i <- output( simulation, subset = model_i, methods = methods_to_process )
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
   cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
   
   #' Parse 'method_name' strings into {"method_name", "alloc_method", "analysis_method", "adjustment", "nsim"}
-  output_method_names <- sapply( output_j, function( .object ){ .object@method_name }) 
+  output_method_names <- sapply( out_model_i, function( .object ){ .object@method_name }) 
   methods_included_parsed <- cbind( output_method_names, 
                                     t(sapply( strsplit( output_method_names, split = "_"), function(.listobj){unlist( .listobj )})),
                                     nsim = 0, time_elapsed = NA )
@@ -209,66 +236,44 @@ for( sim_j in 1:num_simulation_models ){
   
   #' [ NEW 9-Aug-18: Flag conditions by 'separationIndicator' ]
   if( batch_no %in% 1:2 ){
-    output_allocs_only <- output( simulation, subset = sim_j, methods = alloc_method )
-    output_alloc_names <- sapply( output_allocs_only, function( .Output.obj ){ .Output.obj@method_name })
-    draws_look <- draws( simulation, subset = sim_j )
-    
     #' [ NEW 12-Aug-18: Flag conditions by 'glm_converged' ]
-    if( use_glm_convergence_criterion ){
-      #' [ test all draws for glm convergence ]
-      adjusted_alloc_names <- methods_included_parsed[ methods_included_parsed[,"adjustment"] == "ADJ", "alloc_method"]
-      glm_convergence_status_adj <- matrix( nrow = nsim, ncol = length( adjusted_alloc_names ), 
-                                            dimnames = list( 1:nsim, adjusted_alloc_names ))
-      unadjusted_alloc_names <- methods_included_parsed[ methods_included_parsed[,"adjustment"] == "UN", "alloc_method"]
-      glm_convergence_status_un <- matrix( nrow = nsim, ncol = length( unadjusted_alloc_names ), 
-                                              dimnames = list( 1:nsim, unadjusted_alloc_names ))
-      
-      cat(paste0("[ Model ", sim_j, " ][-|       ] Checking convergence status... [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
-      #' [ NOTE: should iterate over rows of `methods_included_parsed`. ]
-      for( sim_i in seq_len( nsim ) ){
-        for( alloc_j in seq_along( output_alloc_names ) ){
-          df_ij <- data.frame(output_allocs_only[[ alloc_j ]]@out[[ sim_i ]][1:2])
-          df_ij$X <- draws_look@draws[[ sim_i ]]$X
-          myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
-          glm_convergence_status_adj[ sim_i, alloc_j ] <- glm_test$converged
-          if( !glm_test$converged ){
-            cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE (ADJUSTED).\n"))
-          }
-          #' [ see if unadjusted estimates are computed. if so, then check convergence status. ]
-          if( output_allocs_only[[ alloc_j ]]@method_name == "CR" ){
-            myTryCatch( glm_test <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
-            glm_convergence_status_un[ sim_i, "CR" ] <- glm_test$converged
-            if( !glm_test$converged ){
-              cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE (UNADJUSTED).\n"))
-            }
-          }else if( output_allocs_only[[ alloc_j ]]@method_name == "SBR" ){
-            myTryCatch( glm_test <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
-            glm_convergence_status_un[ sim_i, "SBR" ] <- glm_test$converged
-            if( !glm_test$converged ){
-              cat(paste0("Simulation [ ", sim_i, " ] Alloc no. [", alloc_j ," ] DID NOT CONVERGE (UNADJUSTED).\n"))
-            }
-          }
-        }
+    cat(paste0("[ Model ", model_i, " ][---|      ] Testing output for glm() convergence...\n")); ptm <- proc.time();
+    glm_convergence_by_output_j <- matrix( nrow = nsim, ncol = nrow( methods_included_parsed ))
+    colnames( glm_convergence_by_output_j ) <- methods_included_parsed[, "method_name"]
+    #' [ Get (X) draws ]
+    draws_model_i <- draws( simulation, subset = model_i )@draws
+    #' [ Get unique alloc_method names ]
+    alloc_methods_unique <- unique( methods_included_parsed[, "alloc_method"] )
+    for( method_k in seq_along( alloc_methods_unique )){
+      alloc_name_k <- alloc_methods_unique[ method_k ]
+      cat(paste0("Testing method: ", alloc_name_k, " for glm() convergence...\n" ))
+      # indices for method_k in output table.
+      method_k_indices <- which( alloc_name_k == methods_included_parsed[ , "alloc_method" ] )
+      #' [ Get (Z,Y) output for corresponding alloc_method ]
+      ZY_model_i <- output( simulation, subset = model_i, methods = alloc_name_k )@out
+      if( alloc_name_k == "CAA-MI-2-PBA-0.70" ){
+        # only adjusted estimates.
+        glm_convergence_by_output_j[ , method_k_indices ] <- mapply( test_glm_convergence, draws_model_i, ZY_model_i, MoreArgs = list( adjustX = TRUE ))
+      }else{
+        glm_convergence_by_output_j[, method_k_indices ] <- t( mapply( test_glm_convergence_both_adj_unadj, draws_model_i, ZY_model_i ) )
       }
-      cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
     }
-
     #' matrix 'separation_status' tracks indicator of if separation = TRUE. 
-    separation_status <- matrix( nrow = nsim, ncol = length( output_allocs_only ), dimnames = list( 1:nsim, output_alloc_names ))
-    for( i in seq_along( output_alloc_names ) ){
-      separation_status[, i] <- unlist(lapply( output_allocs_only[[ i ]]@out, anyzero ));
+    separation_status <- matrix( nrow = nsim, ncol = length( alloc_methods_unique ), dimnames = list( 1:nsim, alloc_methods_unique ))
+    allocs_outcomes_model_i <- output( simulation, subset = model_i, methods = alloc_methods_unique )
+    for( i in seq_along( alloc_methods_unique ) ){
+      separation_status[, i] <- unlist(lapply( allocs_outcomes_model_i[[ i ]]@out, anyzero ));
     }
+    cat(paste0("Success! \nElapsed time (testing glm() convergence): \n")); print( proc.time() - ptm.all );
   }
   
   #' Parse model parameters into unique identifier 'id_sim'
-  index_exclude <- which( sapply(model( simulation )[[ sim_j ]]@params, function(.x){length(unlist(.x)) > 1} )) # exclude non-scalars
-  id_sim <- paste0(model( simulation )[[ sim_j ]]@params[ -index_exclude ], collapse = "-")
+  index_exclude <- which( sapply(model( simulation )[[ model_i ]]@params, function(.x){length(unlist(.x)) > 1} )) # exclude non-scalars
+  id_sim <- paste0(model( simulation )[[ model_i ]]@params[ -index_exclude ], collapse = "-")
   cat(paste0("Unique ID for simulation: ", id_sim, "\n\n")); 
   
-
-  
-  cat(paste0("[ Model ", sim_j, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
-  cat(paste0("[ Model ", sim_j, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
+  cat(paste0("[ Model ", model_i, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
+  cat(paste0("[ Model ", model_i, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
   
   #' Define lists that will store output data
   num_outputs <- length( output_method_names );
@@ -277,37 +282,26 @@ for( sim_j in 1:num_simulation_models ){
   dfs_out_j_subsetted <- vector( mode = "list", length = num_outputs );
   metrics_by_out_j_subsetted_validse <- vector( mode = "list", length = num_outputs );
   
-  true_trt_effect <- model( simulation )[[ sim_j ]]@params$bZ
-  for( i in 1:length( output_j )){
-    dfs_out_j[[ i ]]  <- data.frame(t(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
+  true_trt_effect <- model( simulation )[[ model_i ]]@params$bZ
+  for( i in 1:length( out_model_i )){
+    dfs_out_j[[ i ]]  <- data.frame(t(vapply( out_model_i[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
     dimnames(dfs_out_j[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
     #' Compute statistics on estimates
-    dfs_out_j[[i]]$method_name <- output_j[[i]]@method_name
+    dfs_out_j[[i]]$method_name <- out_model_i[[i]]@method_name
     dfs_out_j[[i]]$power.pvalue <- with( dfs_out_j[[i]], p < 0.05 )
     dfs_out_j[[i]]$power.rerand <- with( dfs_out_j[[i]], est < cilower | est > ciupper ) 
     dfs_out_j[[i]]$power.ci <- with( dfs_out_j[[i]], 0 < cilower | 0 > ciupper )
     dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
     dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
     #' [ NEW 9-Aug-18: add in separation status indicator, computed earlier in 'separation_status' matrix ]
-    alloc_method_output_j <- methods_included_parsed[i ,"alloc_method"]
+    alloc_method_out_model_i <- methods_included_parsed[i ,"alloc_method"]
     if( batch_no %in% 1:2 ){
-      dfs_out_j[[i]]$separation_status <- separation_status[, alloc_method_output_j]
-      if( use_glm_convergence_criterion ){
-        if( methods_included_parsed[ i, "adjustment" ] == "ADJ" ){
-          dfs_out_j[[i]]$glm_converged <- glm_convergence_status_adj[, alloc_method_output_j]
-        }else{
-          dfs_out_j[[i]]$glm_converged <- glm_convergence_status_un[, alloc_method_output_j]
-        }
-      }
-    }else{
-      dfs_out_j[[i]]$separation_status <- FALSE;
-      if( use_glm_convergence_criterion ){
-        dfs_out_j[[i]]$glm_converged <- FALSE;
-      }
+      dfs_out_j[[i]]$separation_status <- separation_status[, alloc_method_out_model_i]
+        dfs_out_j[[i]]$glm_converged <- glm_convergence_by_output_j[, i]
     }
     #' Get simulation metrics: 
     #' > 'time_elapsed' := overall time computing each method, 
-    methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( output_j[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
+    methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( out_model_i[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
     #' > 'nsim' := all simulations  
     methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
     #' Compute means of relevant statistics
@@ -317,37 +311,37 @@ for( sim_j in 1:num_simulation_models ){
                                median_bias = median( dfs_out_j[[i]]$bias ),
                                nsim = dim( dfs_out_j[[i]] )[1], 
                                methods_included_parsed[ i, "time_elapsed" ],
-                               modelno = sim_j, 
-                               method_name = output_j[[i]]@method_name);
+                               modelno = model_i, 
+                               method_name = out_model_i[[i]]@method_name);
     
     #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
     if( batch_no %in% 1:2 ){
-      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ dfs_out_j[[ i ]]$glm_converged, indices_colMeans ]
+      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ dfs_out_j[[ i ]]$glm_converged & !dfs_out_j[[ i ]]$separation_status, indices_colMeans ]
       metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
                                                    median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
                                                    nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
                                                    methods_included_parsed[ i, "time_elapsed" ],
-                                                   modelno = sim_j, 
-                                                   method_name = output_j[[i]]@method_name);
-    }
+                                                   modelno = model_i, 
+                                                   method_name = out_model_i[[i]]@method_name);
+    } # end if outcome = BINARY
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
   #' Write output files to .csv?
   dfs_out_all <- do.call( rbind, dfs_out_j )
   if( write_outputfiles ){
-    outputfile_name <- outputfile_names[ sim_j ]
+    outputfile_name <- outputfile_names[ model_i ]
     if(!file.exists( outputfile_name )){
       cat(paste0("\nNOTE: Output file: ", outputfile_name, " does not exist. \nCreating output file and saving...\n\n"))
       write.csv( dfs_out_all, file = outputfile_name, row.names = FALSE )
     }else{
-      cat(paste0("Appending output from model ", sim_j, " to file ", outputfile_name, "...\n"))
+      cat(paste0("Appending output from model ", model_i, " to file ", outputfile_name, "...\n"))
       write.table( dfs_out_all, file = outputfile_name, sep = ",", append = TRUE, quote = FALSE,
                    col.names = FALSE, row.names = FALSE)
     }
   }
 
-  cat(paste0("[ model ", sim_j, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
+  cat(paste0("[ model ", model_i, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
   metrics_all_output <- do.call( rbind, metrics_by_out_j )
   if( round_results ){ #' note: disabling scientific notation
     variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias", "separation_status")
@@ -355,10 +349,10 @@ for( sim_j in 1:num_simulation_models ){
       format(round(as.numeric(metrics_all_output[, variables_to_round ]), digits_to_round_to ), scientific = FALSE)
   }
   metrics_all_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output,
-                                          model( simulation )[[ sim_j ]]@params[-index_exclude]) 
+                                          model( simulation )[[ model_i ]]@params[-index_exclude]) 
   cat("Success! \n\n")
   
-  cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
+  cat(paste0("[ model ", model_i, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
   if(!file.exists( metricfile_name )){
     cat(paste0("\nNOTE: file: ", metricfile_name, " does not exist. \nCreating file and saving...\n\n"))
     write.csv( metrics_all_with_id, file = metricfile_name, row.names = FALSE )
@@ -368,20 +362,19 @@ for( sim_j in 1:num_simulation_models ){
                  col.names = FALSE, row.names = FALSE)
   }
   cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-  
-  #' If outcome is binary, then write subsetted metrics to file!
+
   if( batch_no %in% 1:2 ){
-    cat(paste0("[ model ", sim_j, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
+    cat(paste0("[ model ", model_i, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
     metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
     if( round_results ){ #' note: disabling scientific notation
       metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
         format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
     }
     metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
-                                                     model( simulation )[[ sim_j ]]@params[-index_exclude]) 
+                                                     model( simulation )[[ model_i ]]@params[-index_exclude]) 
     cat("Success! \n\n")
     
-    cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write (SUBSETTED) metrics to: ", metricfile_name_subset_valid, "...\n")); ptm <- proc.time();
+    cat(paste0("[ model ", model_i, " ][--------|] Attempting to write (SUBSETTED) metrics to: ", metricfile_name_subset_valid, "...\n")); ptm <- proc.time();
     if(!file.exists( metricfile_name_subset_valid )){
       cat(paste0("\nNOTE: file: ", metricfile_name_subset_valid, " does not exist. \nCreating file and saving...\n\n"))
       write.csv( metrics_all_with_id_validse, file = metricfile_name_subset_valid, row.names = FALSE )
@@ -395,7 +388,7 @@ for( sim_j in 1:num_simulation_models ){
 
   #' Write progress table to .csv 
   if( write_progressfile ){
-    cat(paste0("[ model ", sim_j, " ][--------|] Attempting to write progress table to: ", progressfile_name, "...\n")); ptm <- proc.time();
+    cat(paste0("[ model ", model_i, " ][--------|] Attempting to write progress table to: ", progressfile_name, "...\n")); ptm <- proc.time();
     #' Make table of all methods we want simulation output for.
     methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")), nsim = 0, time_elapsed = NA)
     colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
@@ -403,7 +396,7 @@ for( sim_j in 1:num_simulation_models ){
     #' Get indices of methods with no output.
     method_indices_not_incld <- which( !(methods_all_parsed[, "method_name"] %in% methods_included_parsed[, "method_name"]) )
     progress_by_method_by_model <- cbind(rbind( methods_included_parsed, methods_all_parsed[ method_indices_not_incld, ]),
-                                         modelno = sim_j, id_sim = id_sim )
+                                         modelno = model_i, id_sim = id_sim )
     if(!file.exists( progressfile_name )){
       cat(paste0("\nNOTE: file: ", progressfile_name, " does not exist. \nCreating file and saving...\n\n"))
       write.csv( progress_by_method_by_model, file = progressfile_name, row.names = FALSE )
@@ -413,19 +406,19 @@ for( sim_j in 1:num_simulation_models ){
                    col.names = FALSE, row.names = FALSE)
     }
     #' Compare output methods to 'methods_all_parsed'
-    cat(paste0("Simulation [ ", sim_j, " ] has these outputs:\n"))
+    cat(paste0("Simulation [ ", model_i, " ] has these outputs:\n"))
     print( methods_included_parsed );
-    cat(paste0("\n Simulation [ ", sim_j, " ] is missing these outputs:\n"))
+    cat(paste0("\n Simulation [ ", model_i, " ] is missing these outputs:\n"))
     print( methods_all_parsed[ method_indices_not_incld, ] );
   }
   
   #' Save output for each model (so it doesn't disappear in the loop!)
   if( keep_output_in_environment ){
-    dfs_by_model[[ sim_j ]] <- dfs_out_all;
-    metrics_by_model[[ sim_j ]] <- metrics_all_with_id;
+    dfs_by_model[[ model_i ]] <- dfs_out_all;
+    metrics_by_model[[ model_i ]] <- metrics_all_with_id;
     #' only save subsetted metrics if they exist!
     if( batch_no %in% 1:2 ){
-      metrics_by_model_subsetted[[ sim_j ]] <- metrics_all_with_id_validse;
+      metrics_by_model_subsetted[[ model_i ]] <- metrics_all_with_id_validse;
     }
   }
   
@@ -441,7 +434,7 @@ for( sim_j in 1:num_simulation_models ){
     metrics_all_with_id <- NULL;
     metrics_all_with_id_validse <- NULL;
   }
-  cat(paste0("Simulation model [ ", sim_j, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all ); cat("\n\n\n\n");
+  cat(paste0("Simulation model [ ", model_i, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all ); cat("\n\n\n\n");
 }
 
 if( keep_output_in_environment ){
@@ -450,3 +443,48 @@ if( keep_output_in_environment ){
   cat("`metrics_by_model`          : list of data.frames of all metrics.\n")
   cat("`metrics_by_model_subsetted`: list of data.frames of all metrics for subsetted simulations.\n")
 }
+
+
+
+#' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
+process_subsetting_after_running <- FALSE
+
+if( process_subsetting_after_running ){
+  cat(paste0("[ model ", model_i, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
+  
+  dfs_out_j_subsetted <- vector( mode = "list", num_simulation_models )
+  metrics_by_out_j_subsetted_validse <- vector( mode = "list", num_simulation_models )
+  
+  for( model_q in 1:num_simulation_models ){
+    dfs_out_j <- split( dfs_by_model[[1]], dfs_by_model[[1]]$method_name )
+    for( i in seq_along( dfs_out_j ) ){
+      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ dfs_out_j[[ i ]]$glm_converged & !dfs_out_j[[ i ]]$separation_status, indices_colMeans ]
+      metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
+                                                   median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
+                                                   nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
+                                                   methods_included_parsed[ i, "time_elapsed" ],
+                                                   modelno = model_q, 
+                                                   method_name = names( dfs_out_j )[i]);
+    } # end for( methods i )
+    metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
+    if( round_results ){ #' note: disabling scientific notation
+      metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
+        format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
+    }
+    metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
+                                                     model( simulation )[[ model_q ]]@params[-index_exclude]) 
+    cat(paste0("[ model ", model_q, " ][--------|] Attempting to write (SUBSETTED) metrics to: ", metricfile_name_subset_valid, "...\n")); ptm <- proc.time();
+    if(!file.exists( metricfile_name_subset_valid )){
+      cat(paste0("\nNOTE: file: ", metricfile_name_subset_valid, " does not exist. \nCreating file and saving...\n\n"))
+      write.csv( metrics_all_with_id_validse, file = metricfile_name_subset_valid, row.names = FALSE )
+    }else{
+      cat(paste0("Appending metrics to file ", metricfile_name_subset_valid, "...\n"))
+      write.table( metrics_all_with_id_validse, file = metricfile_name_subset_valid, sep = ",", append = TRUE, quote = FALSE,
+                   col.names = FALSE, row.names = FALSE)
+    }
+    cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
+  } # end for( model_q )
+  cat("Success! \n\n")
+}
+
+

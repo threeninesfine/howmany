@@ -105,7 +105,7 @@ round( summary( glm_look )$coef, 4)
 # X1            0.6705     0.6870  0.9759   0.3375
 # X2            0.6579     0.5987  1.0989   0.2812
 
-#' [ custom tryCatch() function -- TODO(michael): adapt to glm()! ]
+#' [ custom tryCatch() function ]
 # custom tryCatch to return result and warnings -- http://stackoverflow.com/a/24569739/2271856
 myTryCatch <- function(expr) {
   warn <- err <- NULL
@@ -202,4 +202,147 @@ microbenchmark::microbenchmark( f0(), f1() )
 #' [ NOTE: not saving glm() full output doesn't save time. ]
 microbenchmark::microbenchmark( f0(2), f1(2), f2(2), f3(2) )
 
+
+
+
+#' -------------------------------------------------------------------------- #
+#' [ TASK : check GLM convergence status. ]
+test_glm_convergence <- function( drawobj, outobj, adjustX = TRUE){
+  df_ij <- data.frame( outobj[1:2] )
+  if( adjustX ){
+    df_ij$X <- drawobj$X 
+    myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
+  }else{
+    myTryCatch( glm_test <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+  }
+  return( glm_test$converged )
+}
+
+f1 <- function( drawobj, outobj ){
+  return(c( adj = test_glm_convergence( drawobj = drawobj, outobj = outobj, adjustX = TRUE ), 
+            un = test_glm_convergence( drawobj = drawobj, outobj = outobj, adjustX = FALSE )))
+}
+
+test_glm_convergence_both_adj_unadj <- function( drawobj, outobj ){
+  df_ij <- data.frame( outobj[1:2] )
+  df_ij$X <- drawobj$X 
+  myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
+  myTryCatch( glm_test_un <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+  return(c(ADJ = glm_test$converged,
+           UN = glm_test_un$converged))
+}
+
+test_glm_convergence_both_adj_unadj( drawobj = drawobj, outobj = outobj )
+t( mapply( test_glm_convergence_both_adj_unadj, draws_model_i[1:10], ZY_model_i[1:10]) )
+microbenchmark::microbenchmark( f1( drawobj = drawobj, outobj = outobj ),
+                                test_glm_convergence_both_adj_unadj( drawobj = drawobj, outobj = outobj ) )
+
+#' -------------------------------------------------------------------------- #
+#' [ APPROACH 1: iterating over all rows in `methods_included_parsed` ]
+#' -------------------------------------------------------------------------- #
+glm_convergence_by_output_j <- matrix( nrow = nsim, ncol = nrow( methods_included_parsed ))
+#' [ Get (X) draws ]
+draws_model_i <- draws( simulation, subset = model_i )@draws
+for( iter_j in seq_len(nrow( methods_included_parsed )) ){
+  alloc_method_iter_j <- methods_included_parsed[ iter_j, "alloc_method" ] 
+  #' [ Get (Z,Y) output for corresponding alloc_method ]
+  ZY_model_i <- output( simulation, subset = model_i, methods = alloc_method_iter_j )@out
+  #' [ Get adjustment ("ADJ" or "UN") ]
+  adjust_iter_j <- ( methods_included_parsed[ iter_j, "adjustment" ] == "ADJ" )
+  cat(paste0("Evaluating output number ", iter_j, " for glm() convergence...\n"))
+  glm_convergence_by_output_j[ , iter_j ] <- mapply( test_glm_convergence, draws_model_i, ZY_model_i, MoreArgs = list( adjustX = adjust_iter_j ))
+}
+
+
+#' -------------------------------------------------------------------------- #
+#' [ APPROACH 2: iterating over all rows in `methods_included_parsed` ]
+#' -------------------------------------------------------------------------- #
+glm_convergence_by_output_j <- matrix( nrow = nsim, ncol = nrow( methods_included_parsed ))
+colnames( glm_convergence_by_output_j ) <- methods_included_parsed[, "method_name"]
+#' [ Get (X) draws ]
+draws_model_i <- draws( simulation, subset = model_i )@draws
+#' [ Get unique alloc_method names ]
+alloc_methods_unique <- unique( methods_included_parsed[, "alloc_method"] )
+for( method_k in seq_along( alloc_methods_unique )){
+  alloc_name_k <- alloc_methods_unique[ method_k ]
+  cat(paste0("Testing method: ", alloc_name_k, " for glm() convergence...\n" ))
+  # indices for method_k in output table.
+  method_k_indices <- which( alloc_name_k == methods_included_parsed[ , "alloc_method" ] )
+  #' [ Get (Z,Y) output for corresponding alloc_method ]
+  ZY_model_i <- output( simulation, subset = model_i, methods = alloc_name_k )@out
+  if( alloc_name_k == "CAA-MI-2-PBA-0.70" ){
+    # only adjusted estimates.
+    glm_convergence_by_output_j[ , method_k_indices ] <- mapply( test_glm_convergence, draws_model_i, ZY_model_i, MoreArgs = list( adjustX = TRUE ))
+  }else{
+    #' [ check that order of "adjustment" is c("ADJ", "UN") ]
+    if( all( methods_included_parsed[ 3:4, "adjustment" ] == c("ADJ", "UN") )){
+      glm_convergence_by_output_j[, method_k_indices ] <- t( mapply( test_glm_convergence_both_adj_unadj, draws_model_i, ZY_model_i ) )
+    }else{
+      cat("WARNING!!!!! GLM adjustment test out of order.")
+    } 
+  }
+}
+
+
+
+
+
+check_glm_convergence <- function( output_object, model_i, nsim = 5010 ){
+  #' [Parse 'method_name' strings into {"method_name", "alloc_method", "analysis_method", "adjustment", "nsim"}]
+
+  #' [ Matrices `glm_convergence_status_adj` and `glm_convergence_status_un` will be returned. ]
+  adjusted_alloc_names <- unique( methods_included_parsed[ methods_included_parsed[,"adjustment"] == "ADJ", "alloc_method"] )
+  glm_convergence_status_adj <- matrix( nrow = nsim, ncol = length( adjusted_alloc_names ), 
+                                        dimnames = list( 1:nsim, adjusted_alloc_names ))
+  unadjusted_alloc_names <- unique( methods_included_parsed[ methods_included_parsed[,"adjustment"] == "UN", "alloc_method"] )
+  glm_convergence_status_un <- matrix( nrow = nsim, ncol = length( unadjusted_alloc_names ), 
+                                       dimnames = list( 1:nsim, unadjusted_alloc_names ))
+  
+  
+  
+  #' [ NOTE: could iterate over rows of `methods_included_parsed`!]
+  for( sim_j in seq_len( nsim ) ){
+    #' [ `allocs_outcomes_model_i` is the (Z,Y) (allocation, outcome) pairs for each subject in simulation `model_i`.]
+    allocs_outcomes_model_i <- output( simulation, subset = model_i, methods = alloc_methods )
+    #' [ `output_alloc_names` are the names of the allocation procedure used.]
+    output_alloc_names <- sapply( allocs_outcomes_model_i, function( .Output.obj ){ .Output.obj@method_name })
+    #' [ `covars_model_i_sim_j` is the covariate information in simulation `model_i`.]
+    covars_model_i_sim_j <- draws( simulation, subset = model_i )@draws[[ sim_j ]]
+    for( alloc_j in seq_along( output_alloc_names ) ){
+      #' [ `method_name_alloc_j` is the allocation method name for output object `alloc_j` in simulation `model_i`.]
+      method_name_alloc_j <- allocs_outcomes_model_i[[ alloc_j ]]@method_name
+      glm_matrix_adj_col_index <- which.max( adjusted_alloc_names == method_name_alloc_j )
+      #' [ `df_ij` is a data.frame for storing (X,Z,Y) info for model fitting. ]
+      df_ij <- data.frame(allocs_outcomes_model_i[[ alloc_j ]]@out[[ sim_j ]][1:2])
+      df_ij$X <- covars_model_i_sim_j$X
+      myTryCatch( glm_test <- glm( Y ~ Z + X, family = quasibinomial(link="logit"), data = df_ij ) )
+      glm_convergence_status_adj[ sim_j, glm_matrix_adj_col_index ] <- glm_test$converged
+      if( !glm_test$converged ){
+        cat(paste0("Simulation [ ", sim_j, " ] Alloc type [ ", method_name_alloc_j ," ] DID NOT CONVERGE (ADJUSTED).\n"))
+      }
+      #' [ Check convergence status of unadjusted estimates. ]
+      if( method_name_alloc_j %in% unadjusted_alloc_names ){
+        glm_matrix_un_col_index <- which.max( unadjusted_alloc_names == method_name_alloc_j )
+        myTryCatch( glm_test_un <- glm( Y ~ Z, family = quasibinomial(link="logit"), data = df_ij ) )
+        glm_convergence_status_un[ sim_j, glm_matrix_un_col_index ] <- glm_test_un$converged
+        if( !glm_test_un$converged ){
+          cat(paste0("Simulation [ ", sim_j, " ] Alloc type [", method_name_alloc_j ," ] DID NOT CONVERGE (UNADJUSTED).\n"))
+        }
+      }
+    } # end for( alloc_j )
+  } # end for( sim_j )
+  cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
+}
+
+#' matrix 'separation_status' tracks indicator of if separation = TRUE. 
+separation_status <- matrix( nrow = nsim, ncol = length( output_alloc_names ), dimnames = list( 1:nsim, output_alloc_names ))
+for( i in seq_along( output_alloc_names ) ){
+  separation_status[, i] <- unlist(lapply( allocs_outcomes_model_i[[ i ]]@out, anyzero ));
+}
+
+}
+
+  cat(paste0("[ Model ", model_i, " ][-|       ] Checking convergence status... [ ", simulation@name, " ]...\n")); ptm.all <- proc.time();
+
+}
 
