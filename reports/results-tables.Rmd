@@ -112,8 +112,51 @@ The analysis method for uncertainty estimates is either:
 * Rerandomization-based, with 500 rerandomized treatment allocations performed per simulation draw.
 
 ----------
+## Modifications
++ [ table 1a: coverage ] Under `Rerandomization`:`CAA`:`adj` rows 40, 47, 48: coverages near 0
++ [ tables (bias) ] Report median bias
++ [ Batch 2 ] `CAA_rerand_adj` NA estimates 
++ [ Table 2f ] `CR` identical to `CAA_model`, both unadjusted and adjusted
++ [ Table 3a ] `CAA_model_adj` estimates all 1 or 0. Does this mean they haven't been run?
++ [ Table 3a: coverage ] Duplicated estimates in each row 
++ [ Table 3b: bias ] Duplicated estimates in pairs for each method
++ [ Table 3c: power ] Duplicated estimates in pairs for each method
 
-```{r assert_that, cache = FALSE, echo = FALSE}
+## Observations
+### Table 1a: coverage
+
++ Unadjusted methods have greater coverage than adjusted methods
++ for low outcome prevalence cases, coverage close to 1.000
++ `CAA_rerand_adj` has coverage greater than `CAA_model_adj`
++ `CAA_rerand_adj` has poor performance when `bZ` is 3
+
+### Table 1b: bias
+
++ Low outcome prevalence and high treatment effect, large positive bias in all methods
++ bias approaches 0 when sample size is increased or outcome prevalence increases
++ `CAA_rerand_adj` has same bias as `CAA_model_adj` (rerandomization has no effect on bias)
+
+### Table 1c: power
+
++ Adjusted methods have greater power than unadjusted estimates (as anticipated)
++ CR methods go against this trend (unadjusted has slightly greater power)
++ Power increases with `bZ`
++ Power increases with `bX` in all methods
++ `CAA_rerand_adj` is consistently more powerful than `CAA_model_adj`
+
+### Table 1d: coverage (subsetted)
+
++ foo
+
+### Table 1e: bias (subsetted)
+
++ bar
+
+### Table 1f: power (subsetted)
+
++ baz
+
+```{r assert_that, cache = TRUE, echo = FALSE}
 #' [ assert_that( expr, errmsg ) returns `errmsg` if expr is NOT true ]
 assert_that <- function( expr, errmsg ){
   if( !all( expr ) )
@@ -221,7 +264,8 @@ make_summary_tables_adj_and_unadj_sorted <-
                       CAA_rerand_adj = outdf_adj$CAA_rerand, CAA_rerand_un = outdf_un$CAA_rerand )
   
   #' [4] Exclude certain parameters. 
-  col_indices_to_exclude <- which( dimnames( outdf_all)[[2]] %in% c("modelno", "CAA_rerand_un") )
+  col_names_to_exclude <- c("CAA_rerand_un") # c("modelno", "CAA_rerand_un") 
+  col_indices_to_exclude <- which( dimnames( outdf_all)[[2]] %in% col_names_to_exclude )
   
   #' [5] Return estimates in sorted order, excluding variables in `col_indices_to_exclude`.
   return( outdf_all[ row_indices_sorted, - col_indices_to_exclude ] )
@@ -311,8 +355,11 @@ replace_values <- Vectorize( replace_large_value )
 tbl2a <- batch2_make_summary_tables( metric_df = metrics_batch2, metric = "coverage")
 tbl2b <- batch2_make_summary_tables( metric_df = metrics_batch2, metric = "bias")
 #' Format large bias values to show ">1000" or "<1000"
+col_names_to_truncate <- c("CR_adj", "CR_un", "SBR_adj", "SBR_un", "CAA_model_adj", "CAA_model_un", "CAA_rerand_adj")
+col_indices_to_truncate <- which( dimnames( tbl2b )[[2]] %in% col_names_to_truncate )
 tbl2b_formatted <- tbl2b;
-tbl2b_formatted[, 5:11] <- apply( tbl2b[,5:11], 2, replace_values )
+tbl2b_formatted[, col_indices_to_truncate ] <- apply( tbl2b[, col_indices_to_truncate ], 2, replace_values )
+
 tbl2c <- batch2_make_summary_tables( metric_df = metrics_batch2, metric = "power")
 
 tbl2d <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "coverage")
@@ -321,8 +368,9 @@ tbl2d_nsim <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric
 tbl2e <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "bias")
 tbl2e_nsim <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "nsim")
 #' Format large bias values to show ">1000" or "<1000"
+col_indices_to_truncate <- which( dimnames( tbl2e )[[2]] %in% col_names_to_truncate )
 tbl2e_formatted <- tbl2e;
-tbl2e_formatted[, 5:11] <- apply( tbl2e[,5:11], 2, replace_values )
+tbl2e_formatted[, col_indices_to_truncate] <- apply( tbl2e[,col_indices_to_truncate], 2, replace_values )
 
 tbl2f <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "power")
 tbl2f_nsim <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "nsim")
@@ -350,11 +398,11 @@ tbl4c <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "power
 ## Batch 1: Binary outcome (Y), binary prognostic factors (X) {-}
 ### Complete simulation results (5010 simulations)
 ```{r batch-1-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b1 = c("n", "Pr( Y )", "Pr( X )", "bZ", "bX", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
-.align.b1 = c(rep("c", 5), rep("r", 6), "c");
+.col.names.b1 = c("modelno","n", "Pr( Y )", "Pr( X )", "bZ", "bX", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.align.b1 = c(rep("c", 6), rep("r", 6), "c");
 .latex_options.b1 = c("striped", "bordered", "hold_position")
-.header.randomization.method.b1 = c(" " = 5, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
-.header.analysis.method.b1 = c(" " = 5, "Model-based" = 6, "Rerandomization" = 1);
+.header.randomization.method.b1 = c(" " = 6, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
+.header.analysis.method.b1 = c(" " = 6, "Model-based" = 6, "Rerandomization" = 1);
 .batch.labels <- paste0("Table ", 1, c("a", "b", "c", "d", "e", "f"), 
                         ": (Binary Y, binary X) ",
                         c("Coverage probability", "Bias", "Power"))
@@ -369,6 +417,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
+\newpage
 
 \newpage
 ```{r batch-1-bias-table, cache = TRUE, echo = FALSE, results='asis'}
@@ -425,11 +474,11 @@ tbl1f %>%
 \newpage
 ## Batch 2: Binary outcome (Y), continuous prognostic factors (X) {-}
 ```{r batch-2-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b2 = c("n", "Pr( Y )", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
-.align.b2 = c(rep("c", 4), rep("r", 6), "c");
+.col.names.b2 = c("modelno", "n", "Pr( Y )", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.align.b2 = c(rep("c", 5), rep("r", 6), "c");
 .latex_options.b2 = c("striped", "bordered", "hold_position")
-.header.randomization.method.b2 = c(" " = 4, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
-.header.analysis.method.b2 = c(" " = 4, "Model-based" = 6, "Rerandomization" = 1);
+.header.randomization.method.b2 = c(" " = 5, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
+.header.analysis.method.b2 = c(" " = 5, "Model-based" = 6, "Rerandomization" = 1);
 
 .batch.labels <- paste0("Table ", 2, c("a", "b", "c", "d", "e", "f"), 
                         ": (Binary Y, continuous X) ",
@@ -501,11 +550,11 @@ tbl2f %>%
 
 
 ```{r batch-3-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b3 = c("n", "Pr( X )", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
-.align.b3 = c(rep("c", 4), rep("r", 6), "c");
+.col.names.b3 = c("modelno", "n", "Pr( X )", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.align.b3 = c(rep("c", 5), rep("r", 6), "c");
 .latex_options.b3 = c("striped", "bordered", "hold_position")
-.header.randomization.method.b3 = c(" " = 4, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
-.header.analysis.method.b3 = c(" " = 4, "Model-based" = 6, "Rerandomization" = 1);
+.header.randomization.method.b3 = c(" " = 5, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
+.header.analysis.method.b3 = c(" " = 5, "Model-based" = 6, "Rerandomization" = 1);
 
 .batch.labels <- paste0("Table ", 3, c("a", "b", "c", "d", "e", "f"), 
                         ": (Continuous Y, binary X) ",
@@ -547,11 +596,12 @@ kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
 
 
 ```{r batch-4-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b4 = c("n", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
-.align.b4 = c(rep("c", 3), rep("r", 6), "c");
+#' TODO(michael): remove `modelno` and decrement .align.b4, .latex_options.b4, .header.`...` from 4 to 3!
+.col.names.b4 = c("modelno","n", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.align.b4 = c(rep("c", 4), rep("r", 6), "c");
 .latex_options.b4 = c("striped", "bordered", "hold_position");
-.header.randomization.method.b4 = c(" " = 3, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
-.header.analysis.method.b4 = c(" " = 3, "Model-based" = 6, "Rerandomization" = 1);
+.header.randomization.method.b4 = c(" " = 4, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
+.header.analysis.method.b4 = c(" " = 4, "Model-based" = 6, "Rerandomization" = 1);
 
 .batch.labels <- paste0("Table ", 4, c("a", "b", "c", "d", "e", "f"), 
                         ": (Continuous Y, continuous X) ",
