@@ -219,13 +219,12 @@ if( keep_output_in_environment ){
   metrics_by_model_subsetted <- vector( mode = "list", length = num_simulation_models );
 }
 
-for( model_i in 1:num_simulation_models ){
+# for( model_i in 1:num_simulation_models ){
+for( model_i in 1 ){
   cat(paste0("[ Model ", model_i, " of ", num_simulation_models," ][-|       ] Loading output from simulation [ ", 
              simulation@name, " ]...\n")); ptm.all <- proc.time();
   #' Try loading simulation output for model 'model_i' with output names in 'methods_to_process'
-  tryCatch({
-    out_model_i <- output( simulation, subset = model_i, methods = methods_to_process )
-  }, error=function(e){cat("ERROR :",conditionMessage(e), "\n"); next})
+  out_model_i <- output( simulation, subset = model_i, methods = methods_to_process )
   cat(paste0("Success! \nElapsed time (loading output): \n")); print( proc.time() - ptm.all );
   
   #' Parse 'method_name' strings into {"method_name", "alloc_method", "analysis_method", "adjustment", "nsim"}
@@ -262,8 +261,8 @@ for( model_i in 1:num_simulation_models ){
     #' matrix 'separation_status' tracks indicator of if separation = TRUE. 
     separation_status <- matrix( nrow = nsim, ncol = length( alloc_methods_unique ), dimnames = list( 1:nsim, alloc_methods_unique ))
     allocs_outcomes_model_i <- output( simulation, subset = model_i, methods = alloc_methods_unique )
-    for( i in seq_along( alloc_methods_unique ) ){
-      separation_status[, i] <- unlist(lapply( allocs_outcomes_model_i[[ i ]]@out, anyzero ));
+    for( out_j in seq_along( alloc_methods_unique ) ){
+      separation_status[, out_j] <- unlist(lapply( allocs_outcomes_model_i[[ out_j ]]@out, anyzero ));
     }
     cat(paste0("Success! \nElapsed time (testing glm() convergence): \n")); print( proc.time() - ptm.all );
   }
@@ -285,46 +284,46 @@ for( model_i in 1:num_simulation_models ){
   cat(paste0("[ Model ", model_i, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
   cat(paste0("[ Model ", model_i, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
   
-  for( i in 1:length( out_model_i )){
-    dfs_out_j[[ i ]]  <- data.frame(t(vapply( out_model_i[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
-    dimnames(dfs_out_j[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
-    #' Compute statistics on estimates
-    dfs_out_j[[i]]$method_name <- out_model_i[[i]]@method_name
-    dfs_out_j[[i]]$power.pvalue <- with( dfs_out_j[[i]], p < 0.05 )
-    dfs_out_j[[i]]$power.rerand <- with( dfs_out_j[[i]], est < cilower | est > ciupper ) 
-    dfs_out_j[[i]]$power.ci <- with( dfs_out_j[[i]], 0 < cilower | 0 > ciupper )
-    dfs_out_j[[i]]$coverage <- with( dfs_out_j[[i]], cilower < true_trt_effect & true_trt_effect < ciupper )
-    dfs_out_j[[i]]$bias <- with( dfs_out_j[[i]], est - true_trt_effect )
+  for( out_j in 1:length( out_model_i )){
+    dfs_out_j[[ out_j ]]  <- data.frame(t(vapply( out_model_i[[ out_j ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
+    dimnames(dfs_out_j[[ out_j ]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
+    #' Compute statistics on estimates TODO(michael): is using with() here referring to the wrong dfs_out_j[[ model_i ]]??
+    dfs_out_j[[ out_j ]]$method_name <- out_model_i[[ out_j ]]@method_name
+    dfs_out_j[[ out_j ]]$power.pvalue <- with( dfs_out_j[[ out_j ]], p < 0.05 )
+    dfs_out_j[[ out_j ]]$power.rerand <- with( dfs_out_j[[ out_j ]], est < cilower | est > ciupper ) 
+    dfs_out_j[[ out_j ]]$power.ci <- with( dfs_out_j[[ out_j ]], 0 < cilower | 0 > ciupper )
+    dfs_out_j[[ out_j ]]$coverage <- with( dfs_out_j[[ out_j ]], cilower < true_trt_effect & true_trt_effect < ciupper )
+    dfs_out_j[[ out_j ]]$bias <- with( dfs_out_j[[ out_j ]], est - true_trt_effect )
     #' [ NEW 9-Aug-18: add in separation status indicator, computed earlier in 'separation_status' matrix ]
-    alloc_method_out_model_i <- methods_included_parsed[i ,"alloc_method"]
     if( batch_no %in% 1:2 ){
-      dfs_out_j[[i]]$separation_status <- separation_status[, alloc_method_out_model_i]
-        dfs_out_j[[i]]$glm_converged <- glm_convergence_by_output_j[, i]
+      alloc_method_out_model_i <- methods_included_parsed[ out_j ,"alloc_method"]
+      dfs_out_j[[ out_j ]]$separation_status <- separation_status[, alloc_method_out_model_i]
+      dfs_out_j[[ out_j ]]$glm_converged <- glm_convergence_by_output_j[, out_j ]
     }
     #' Get simulation metrics: 
     #' > 'time_elapsed' := overall time computing each method, 
-    methods_included_parsed[ i, "time_elapsed" ] <- round(sum(vapply( out_model_i[[ i ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
+    methods_included_parsed[ out_j, "time_elapsed" ] <- round(sum(vapply( out_model_i[[ out_j ]]@out, function( .list ){ unlist( .list[[10]][3] )}, numeric(1) )),2)
     #' > 'nsim' := all simulations  
-    methods_included_parsed[ i, "nsim"] <- dim( dfs_out_j[[i]] )[1]
+    methods_included_parsed[ out_j, "nsim"] <- dim( dfs_out_j[[ out_j ]] )[1]
     #' Compute means of relevant statistics
-    indices_colMeans <- which( dimnames(dfs_out_j[[i]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", 
-                                                                    "power.rerand","power.ci", "coverage", "bias", "separation_status"))
-    metrics_by_out_j[[i]] <- c(colMeans(dfs_out_j[[i]][, indices_colMeans]),
-                               median_bias = median( dfs_out_j[[i]]$bias ),
-                               nsim = dim( dfs_out_j[[i]] )[1], 
-                               methods_included_parsed[ i, "time_elapsed" ],
+    indices_colMeans <- which( dimnames(dfs_out_j[[ out_j ]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", 
+                                                                    "power.rerand","power.ci", "coverage", "bias"))
+    metrics_by_out_j[[ out_j ]] <- c(colMeans(dfs_out_j[[ out_j ]][, indices_colMeans]),
+                               median_bias = median( dfs_out_j[[ out_j ]]$bias ),
+                               nsim = dim( dfs_out_j[[ out_j ]] )[1], 
+                               methods_included_parsed[ out_j, "time_elapsed" ],
                                modelno = model_i, 
-                               method_name = out_model_i[[i]]@method_name);
+                               method_name = out_model_i[[ out_j ]]@method_name);
     
     #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
     if( batch_no %in% 1:2 ){
-      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ dfs_out_j[[ i ]]$glm_converged & !dfs_out_j[[ i ]]$separation_status, indices_colMeans ]
-      metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
-                                                   median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
-                                                   nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
-                                                   methods_included_parsed[ i, "time_elapsed" ],
+      dfs_out_j_subsetted[[ out_j ]] <- dfs_out_j[[ out_j ]][ dfs_out_j[[ out_j ]]$glm_converged & !dfs_out_j[[ out_j ]]$separation_status, indices_colMeans ]
+      metrics_by_out_j_subsetted_validse[[ out_j ]] <- c(colMeans(dfs_out_j_subsetted[[ out_j ]]), 
+                                                   median_bias = median( dfs_out_j_subsetted[[ out_j ]]$bias ),
+                                                   nsim = dim( dfs_out_j_subsetted[[ out_j ]] )[1], 
+                                                   methods_included_parsed[ out_j, "time_elapsed" ],
                                                    modelno = model_i, 
-                                                   method_name = out_model_i[[i]]@method_name);
+                                                   method_name = out_model_i[[ out_j ]]@method_name);
     } # end if outcome = BINARY
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
@@ -346,7 +345,7 @@ for( model_i in 1:num_simulation_models ){
   cat(paste0("[ model ", model_i, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
   metrics_all_output <- do.call( rbind, metrics_by_out_j )
   if( round_results ){ #' note: disabling scientific notation
-    variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias", "separation_status")
+    variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias" )
     metrics_all_output[, variables_to_round ] <- 
       format(round(as.numeric(metrics_all_output[, variables_to_round ]), digits_to_round_to ), scientific = FALSE)
   }
@@ -459,12 +458,12 @@ if( process_subsetting_after_running ){
   
   for( model_q in 1:num_simulation_models ){
     dfs_out_j <- split( dfs_by_model[[1]], dfs_by_model[[1]]$method_name )
-    for( i in seq_along( dfs_out_j ) ){
-      dfs_out_j_subsetted[[i]] <- dfs_out_j[[ i ]][ dfs_out_j[[ i ]]$glm_converged & !dfs_out_j[[ i ]]$separation_status, indices_colMeans ]
-      metrics_by_out_j_subsetted_validse[[i]] <- c(colMeans(dfs_out_j_subsetted[[i]]), 
-                                                   median_bias = median( dfs_out_j_subsetted[[i]]$bias ),
-                                                   nsim = dim( dfs_out_j_subsetted[[i]] )[1], 
-                                                   methods_included_parsed[ i, "time_elapsed" ],
+    for( out_j in seq_along( dfs_out_j ) ){
+      dfs_out_j_subsetted[[ out_j ]] <- dfs_out_j[[ out_j ]][ dfs_out_j[[ out_j ]]$glm_converged & !dfs_out_j[[ out_j ]]$separation_status, indices_colMeans ]
+      metrics_by_out_j_subsetted_validse[[ out_j ]] <- c(colMeans(dfs_out_j_subsetted[[ out_j ]]), 
+                                                   median_bias = median( dfs_out_j_subsetted[[ out_j ]]$bias ),
+                                                   nsim = dim( dfs_out_j_subsetted[[ out_j ]] )[1], 
+                                                   methods_included_parsed[ out_j, "time_elapsed" ],
                                                    modelno = model_q, 
                                                    method_name = names( dfs_out_j )[i]);
     } # end for( methods i )
