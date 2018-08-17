@@ -112,18 +112,7 @@ The analysis method for uncertainty estimates is either:
 
 ----------
 
-```{r batch-1-binY-binX_bias_examples, cache = TRUE, echo = FALSE, message = FALSE}
-cat("Batch 1: bias (no subsetting)\n")
-with( metrics_batch1, summary( bias ))
-cat("Batch 1: bias (final subsetting)\n")
-with( metrics_batch1_sub, summary( bias ))
-cat("Batch 2: bias (no subsetting)\n")
-with( metrics_batch2, summary( bias ))
-cat("Batch 2: bias (final subsetting)\n")
-with( metrics_batch2_sub, summary( bias ))
-```
-
-```{r assert_that, cache = FALSE, echo = TRUE}
+```{r assert_that, cache = FALSE, echo = FALSE}
 #' [ assert_that( expr, errmsg ) returns `errmsg` if expr is NOT true ]
 assert_that <- function( expr, errmsg ){
   if( !all( expr ) )
@@ -132,7 +121,7 @@ assert_that <- function( expr, errmsg ){
 
 ```
 Here we define make_summary_table().
-```{r summary_table, cache = FALSE, echo = TRUE}
+```{r summary_table, cache = FALSE, echo = FALSE}
 make_summary_table <- function( metric_df = metrics_batch1,
                                 metric = "coverage",
                                 get_adj_ests = TRUE,
@@ -357,7 +346,7 @@ tbl4c <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "power
 ```
 
 ```{r batch-1-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl1a[, c(-1, -dim( tbl1a )[[2]])] %>%
+tbl1a %>%
 kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
@@ -367,7 +356,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE,
 
 \newpage
 ```{r batch-1-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl1b[, c(-1, -dim( tbl1b )[[2]])] %>%
+tbl1b %>%
 kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
@@ -377,7 +366,7 @@ kable( caption = .batch.labels[ 2 ], row.names = FALSE,
 
 \newpage
 ```{r batch-1-power-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl1c[, c(-1, -dim( tbl1c )[[2]])] %>%
+tbl1c %>%
   kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
@@ -388,8 +377,7 @@ tbl1c[, c(-1, -dim( tbl1c )[[2]])] %>%
 \newpage
 ### Subsetted simulation results (simulations without non-complete separation)
 ```{r batch-1-subset-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
-#' TODO(michael 7/31): modify this subtable to include range of 'nsim' values between parameters and model estimates!
-tbl1d[, c(-1, -dim( tbl1d )[[2]])] %>%
+tbl1d %>%
 kable( caption = .batch.labels[ 4 ], row.names = FALSE, 
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
@@ -399,8 +387,7 @@ kable( caption = .batch.labels[ 4 ], row.names = FALSE,
 
 \newpage
 ```{r batch-1-subset-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-#' TODO(michael 7/31): modify this subtable to include range of 'nsim' values between parameters and model estimates!
-tbl1e[, c(-1, -dim( tbl1e )[[2]])] %>%
+tbl1e %>%
   kable( caption = .batch.labels[ 5 ], row.names = FALSE, 
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
@@ -410,7 +397,7 @@ tbl1e[, c(-1, -dim( tbl1e )[[2]])] %>%
 
 \newpage
 ```{r batch-1-subset-power-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl1f[, c(-1, -dim( tbl1f )[[2]])] %>%
+tbl1f %>%
   kable( caption = .batch.labels[ 6 ], row.names = FALSE, 
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
@@ -437,7 +424,7 @@ tbl1f[, c(-1, -dim( tbl1f )[[2]])] %>%
 
 ### Complete simulation results (5010 simulations)
 ```{r batch-2-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2a[, c(-1, -dim( tbl2a )[[2]])] %>%
+tbl2a %>%
 kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
@@ -447,7 +434,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE,
 
 \newpage
 ```{r batch-2-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2b[, c(-1, -dim( tbl2b )[[2]])] %>%
+tbl2b %>%
   kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
@@ -457,7 +444,7 @@ tbl2b[, c(-1, -dim( tbl2b )[[2]])] %>%
 
 \newpage
 ```{r batch-2-power-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2c[, c(-1, -dim( tbl2c )[[2]])] %>%
+tbl2c %>%
   kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
@@ -468,7 +455,7 @@ tbl2c[, c(-1, -dim( tbl2c )[[2]])] %>%
 \newpage
 ### Subsetted simulation results (simulations without non-complete separation)
 ```{r batch-2-subset-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2d[, c(-1, -dim( tbl2d )[[2]])] %>%
+tbl2d %>%
   kable( caption = .batch.labels[ 4 ], row.names = FALSE, 
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
@@ -478,7 +465,7 @@ tbl2d[, c(-1, -dim( tbl2d )[[2]])] %>%
 
 \newpage
 ```{r batch-2-subset-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2e[, c(-1, -dim( tbl2e )[[2]])] %>%
+tbl2e %>%
   kable( caption = .batch.labels[ 5 ], row.names = FALSE, 
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
@@ -488,7 +475,7 @@ tbl2e[, c(-1, -dim( tbl2e )[[2]])] %>%
 
 \newpage
 ```{r batch-2-subset-power-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2f[, c(-1, -dim( tbl2f )[[2]])] %>%
+tbl2f %>%
   kable( caption = .batch.labels[ 6 ], row.names = FALSE, 
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
@@ -513,7 +500,7 @@ tbl2f[, c(-1, -dim( tbl2f )[[2]])] %>%
 \newpage
 ## Batch 3: Continuous outcome (Y), binary prognostic factors (X) {-}
 ```{r batch-3-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl3a[, c(-1, -dim( tbl3a )[[2]])] %>%
+tbl3a %>%
   kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
@@ -523,7 +510,7 @@ tbl3a[, c(-1, -dim( tbl3a )[[2]])] %>%
 
 \newpage
 ```{r batch-3-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl3b[, c(-1, -dim( tbl3b )[[2]])] %>%
+tbl3b %>%
   kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
@@ -533,7 +520,7 @@ tbl3b[, c(-1, -dim( tbl3b )[[2]])] %>%
 
 \newpage
 ```{r batch-3-power-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl3c[, c(-1, -dim( tbl3c )[[2]])] %>%
+tbl3c %>%
 kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
@@ -559,7 +546,7 @@ kable( caption = .batch.labels[ 3 ], row.names = FALSE,
 \newpage
 ## Batch 4: Continuous outcome (Y), continuous prognostic factors (X) {-}
 ```{r batch-4-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl4a[, c(-1, -dim( tbl4a )[[2]])] %>%
+tbl4a %>%
 kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep ) %>%
   kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
@@ -569,7 +556,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE,
 
 \newpage
 ```{r batch-4-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl4b[, c(-1, -dim( tbl4b )[[2]])] %>%
+tbl4b %>%
 kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
@@ -579,7 +566,7 @@ kable( caption = .batch.labels[ 2 ], row.names = FALSE,
 
 \newpage
 ```{r batch-4-power-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl4c[, c(-1, -dim( tbl4c )[[2]])] %>%
+tbl4c %>%
 kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
@@ -587,3 +574,14 @@ kable( caption = .batch.labels[ 3 ], row.names = FALSE,
   add_header_above( .header.analysis.method.b4 )
 ```
 
+
+```{r batch-1-binY-binX_bias_examples, cache = TRUE, echo = FALSE, message = FALSE}
+cat("Batch 1: bias (no subsetting)\n")
+with( metrics_batch1, summary( bias ))
+cat("Batch 1: bias (final subsetting)\n")
+with( metrics_batch1_sub, summary( bias ))
+cat("Batch 2: bias (no subsetting)\n")
+with( metrics_batch2, summary( bias ))
+cat("Batch 2: bias (final subsetting)\n")
+with( metrics_batch2_sub, summary( bias ))
+```
