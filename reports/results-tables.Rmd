@@ -7,6 +7,7 @@ header-includes:
   - \usepackage[table]{xcolor}
   - \usepackage{booktabs}
   - \usepackage{caption}
+  - \usepackage{longtable}
 output:
   pdf_document:
     fig_caption: yes
@@ -120,7 +121,7 @@ assert_that <- function( expr, errmsg ){
 }
 
 ```
-Here we define make_summary_table().
+
 ```{r summary_table, cache = FALSE, echo = FALSE}
 make_summary_table <- function( metric_df = metrics_batch1,
                                 metric = "coverage",
@@ -183,8 +184,7 @@ make_summary_table <- function( metric_df = metrics_batch1,
 }
 ```
 
-Here we define make_summary_tables_adj_and_unadj_sorted().
-```{r summary_tables_big_and_sorted, cache = TRUE, echo = TRUE}
+```{r summary_tables_big_and_sorted, cache = TRUE, echo = FALSE}
 #' [ make_summary_tables_adj_and_unadj_sorted() ]
 #' use: [1] makes summary tables (with adjusted and unadjusted estimates side by side)
 #'      [2] sorts by sort_by_vars.
@@ -228,7 +228,6 @@ make_summary_tables_adj_and_unadj_sorted <-
 }
 ```
 
-Here we define wrapper functions for each batch (aka defaults for 'parameter_names', 'table_colnames', and 'sort_by_vars').
 ```{r summary_table_wrapper_functions, cache = TRUE, echo = FALSE}
 #' [ Define wrapper functions with defaults for 'parameter_names', 'table_colnames', and 'sort_by_vars' ]
 batch1_make_summary_tables <- function( metric_df, metric ){
@@ -275,8 +274,6 @@ batch4_make_summary_tables <- function( metric_df, metric ){
 }
 ```
 
-Batch 1 tables are here, but they are unformatted. 
-TODO(michael): finish formatting and save to file. 
 ```{r batch-1-tables-unformatted, cache = TRUE, echo = FALSE, message = FALSE, warning = FALSE}
 #' [ Batch 1: Binary Y, binary X ]
 tbl1a <- batch1_make_summary_tables( metric_df = metrics_batch1, metric = "coverage")
@@ -293,11 +290,29 @@ tbl1f <- batch1_make_summary_tables( metric_df = metrics_batch1_sub, metric = "p
 tbl1f_nsim <- batch1_make_summary_tables( metric_df = metrics_batch1_sub, metric = "nsim")
 ```
 
-Batch 2 tables are here, but they are unformatted. 
 ```{r batch-2-tables-unformatted, cache = TRUE, echo = FALSE, message = FALSE}
+#' [ replace_large_values( value, threshold) replaces large values with strings: ]
+#' [ returns ">/<`threshold` if value is large, `value` otherwise. ]
+replace_large_value <- function( value, threshold = 1000 ){
+  if( is.na( value ) ){
+    return( "NA" )
+  }else if( value > threshold ){
+    return( paste0(">", threshold) )
+  }else if( value < - threshold ){
+    return( paste0("<", threshold) )
+  }else{
+    return( value )
+  }
+}
+#' [ replace_values() is a vectorized version of replace_large_value() ]
+replace_values <- Vectorize( replace_large_value )
+
 #' [ Batch 2: Binary Y, continuous X ]
 tbl2a <- batch2_make_summary_tables( metric_df = metrics_batch2, metric = "coverage")
 tbl2b <- batch2_make_summary_tables( metric_df = metrics_batch2, metric = "bias")
+#' Format large bias values to show ">1000" or "<1000"
+tbl2b_formatted <- tbl2b;
+tbl2b_formatted[, 5:11] <- apply( tbl2b[,5:11], 2, replace_values )
 tbl2c <- batch2_make_summary_tables( metric_df = metrics_batch2, metric = "power")
 
 tbl2d <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "coverage")
@@ -305,12 +320,14 @@ tbl2d_nsim <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric
 
 tbl2e <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "bias")
 tbl2e_nsim <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "nsim")
+#' Format large bias values to show ">1000" or "<1000"
+tbl2e_formatted <- tbl2e;
+tbl2e_formatted[, 5:11] <- apply( tbl2e[,5:11], 2, replace_values )
 
 tbl2f <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "power")
 tbl2f_nsim <- batch2_make_summary_tables( metric_df = metrics_batch2_sub, metric = "nsim")
 ```
 
-Batch 3 tables are here, but they are unformatted. 
 ```{r batch-3-tables-unformatted, cache = TRUE, echo = FALSE, message = FALSE}
 #' [ Batch 3: Continuous Y, binary X ]
 tbl3a <- batch3_make_summary_tables( metric_df = metrics_batch3, metric = "coverage")
@@ -318,7 +335,6 @@ tbl3b <- batch3_make_summary_tables( metric_df = metrics_batch3, metric = "bias"
 tbl3c <- batch3_make_summary_tables( metric_df = metrics_batch3, metric = "power")
 ```
 
-Batch 4 tables are here, but they are unformatted. 
 ```{r batch-4-tables-unformatted, cache = TRUE, echo = FALSE, message = FALSE}
 #' [ Batch 4: Continuous Y, continuous X ]
 tbl4a <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "coverage")
@@ -334,7 +350,7 @@ tbl4c <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "power
 ## Batch 1: Binary outcome (Y), binary prognostic factors (X) {-}
 ### Complete simulation results (5010 simulations)
 ```{r batch-1-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b1 = c("n", "bZ", "bX", "Pr( Y )", "Pr( X )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.col.names.b1 = c("n", "Pr( Y )", "Pr( X )", "bZ", "bX", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
 .align.b1 = c(rep("c", 5), rep("r", 6), "c");
 .latex_options.b1 = c("striped", "bordered", "hold_position")
 .header.randomization.method.b1 = c(" " = 5, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
@@ -347,7 +363,7 @@ tbl4c <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "power
 
 ```{r batch-1-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl1a %>%
-kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
@@ -357,7 +373,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE,
 \newpage
 ```{r batch-1-bias-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl1b %>%
-kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
@@ -367,7 +383,7 @@ kable( caption = .batch.labels[ 2 ], row.names = FALSE,
 \newpage
 ```{r batch-1-power-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl1c %>%
-  kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
@@ -378,7 +394,7 @@ tbl1c %>%
 ### Subsetted simulation results (simulations without non-complete separation)
 ```{r batch-1-subset-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl1d %>%
-kable( caption = .batch.labels[ 4 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 4 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
@@ -388,7 +404,7 @@ kable( caption = .batch.labels[ 4 ], row.names = FALSE,
 \newpage
 ```{r batch-1-subset-bias-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl1e %>%
-  kable( caption = .batch.labels[ 5 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 5 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
@@ -398,7 +414,7 @@ tbl1e %>%
 \newpage
 ```{r batch-1-subset-power-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl1f %>%
-  kable( caption = .batch.labels[ 6 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 6 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
@@ -409,7 +425,7 @@ tbl1f %>%
 \newpage
 ## Batch 2: Binary outcome (Y), continuous prognostic factors (X) {-}
 ```{r batch-2-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b2 = c("n", "exp( bZ )", "exp( bX )", "Pr( Y )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.col.names.b2 = c("n", "Pr( Y )", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
 .align.b2 = c(rep("c", 4), rep("r", 6), "c");
 .latex_options.b2 = c("striped", "bordered", "hold_position")
 .header.randomization.method.b2 = c(" " = 4, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
@@ -425,7 +441,7 @@ tbl1f %>%
 ### Complete simulation results (5010 simulations)
 ```{r batch-2-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl2a %>%
-kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
@@ -434,8 +450,8 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE,
 
 \newpage
 ```{r batch-2-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2b %>%
-  kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
+tbl2b_formatted %>%
+  kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
@@ -445,7 +461,7 @@ tbl2b %>%
 \newpage
 ```{r batch-2-power-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl2c %>%
-  kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
@@ -456,7 +472,7 @@ tbl2c %>%
 ### Subsetted simulation results (simulations without non-complete separation)
 ```{r batch-2-subset-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl2d %>%
-  kable( caption = .batch.labels[ 4 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 4 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
@@ -465,8 +481,8 @@ tbl2d %>%
 
 \newpage
 ```{r batch-2-subset-bias-table, cache = TRUE, echo = FALSE, results='asis'}
-tbl2e %>%
-  kable( caption = .batch.labels[ 5 ], row.names = FALSE, 
+tbl2e_formatted %>%
+  kable( caption = .batch.labels[ 5 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
@@ -476,7 +492,7 @@ tbl2e %>%
 \newpage
 ```{r batch-2-subset-power-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl2f %>%
-  kable( caption = .batch.labels[ 6 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 6 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
@@ -485,7 +501,7 @@ tbl2f %>%
 
 
 ```{r batch-3-table-settings, cache = TRUE, echo = FALSE, results = 'asis'}
-.col.names.b3 = c("n", "exp( bZ )", "exp( bX )", "Pr( X )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
+.col.names.b3 = c("n", "Pr( X )", "exp( bZ )", "exp( bX )", "adj", "unadj", "adj", "unadj", "adj", "unadj", "adj");
 .align.b3 = c(rep("c", 4), rep("r", 6), "c");
 .latex_options.b3 = c("striped", "bordered", "hold_position")
 .header.randomization.method.b3 = c(" " = 4, "CR" = 2, "SBR" = 2, "CAA" = 2, "CAA" = 1);
@@ -501,7 +517,7 @@ tbl2f %>%
 ## Batch 3: Continuous outcome (Y), binary prognostic factors (X) {-}
 ```{r batch-3-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl3a %>%
-  kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b3 ) %>%
@@ -511,7 +527,7 @@ tbl3a %>%
 \newpage
 ```{r batch-3-bias-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl3b %>%
-  kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
+  kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b3 ) %>%
@@ -521,7 +537,7 @@ tbl3b %>%
 \newpage
 ```{r batch-3-power-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl3c %>%
-kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b3 ) %>%
@@ -547,7 +563,7 @@ kable( caption = .batch.labels[ 3 ], row.names = FALSE,
 ## Batch 4: Continuous outcome (Y), continuous prognostic factors (X) {-}
 ```{r batch-4-coverage-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl4a %>%
-kable( caption = .batch.labels[ 1 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep ) %>%
   kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b4 ) %>%
@@ -557,7 +573,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE,
 \newpage
 ```{r batch-4-bias-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl4b %>%
-kable( caption = .batch.labels[ 2 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b4 ) %>%
@@ -567,7 +583,7 @@ kable( caption = .batch.labels[ 2 ], row.names = FALSE,
 \newpage
 ```{r batch-4-power-table, cache = TRUE, echo = FALSE, results='asis'}
 tbl4c %>%
-kable( caption = .batch.labels[ 3 ], row.names = FALSE, 
+kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep) %>%
   kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b4 ) %>%
