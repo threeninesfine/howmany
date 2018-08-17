@@ -1,7 +1,7 @@
 ---
 title: "Tabulating Results of Simulation Study"
 author: "Michael Flanagin  \\ flanna@uw.edu"
-date: "August 10, 2018"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 classoption: portrait
 header-includes:
   - \usepackage[table]{xcolor}
@@ -365,7 +365,7 @@ tbl4c <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "power
 tbl1a %>%
 kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
@@ -375,7 +375,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
 tbl1b %>%
 kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
@@ -385,7 +385,7 @@ kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
 tbl1c %>%
   kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
@@ -396,7 +396,7 @@ tbl1c %>%
 tbl1d %>%
 kable( caption = .batch.labels[ 4 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
@@ -406,7 +406,7 @@ kable( caption = .batch.labels[ 4 ], row.names = FALSE, longtable = TRUE,
 tbl1e %>%
   kable( caption = .batch.labels[ 5 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
@@ -416,7 +416,7 @@ tbl1e %>%
 tbl1f %>%
   kable( caption = .batch.labels[ 6 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b1, align = .align.b1, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b1, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b1, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b1 ) %>%
   add_header_above( .header.analysis.method.b1 )
 ```
@@ -443,7 +443,7 @@ tbl1f %>%
 tbl2a %>%
 kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
   add_header_above( .header.analysis.method.b2 )
 ```
@@ -453,7 +453,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
 tbl2b_formatted %>%
   kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
   add_header_above( .header.analysis.method.b2 )
 ```
@@ -463,7 +463,7 @@ tbl2b_formatted %>%
 tbl2c %>%
   kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
   add_header_above( .header.analysis.method.b2 )
 ```
@@ -474,7 +474,7 @@ tbl2c %>%
 tbl2d %>%
   kable( caption = .batch.labels[ 4 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
   add_header_above( .header.analysis.method.b2 )
 ```
@@ -484,7 +484,7 @@ tbl2d %>%
 tbl2e_formatted %>%
   kable( caption = .batch.labels[ 5 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
   add_header_above( .header.analysis.method.b2 )
 ```
@@ -494,7 +494,7 @@ tbl2e_formatted %>%
 tbl2f %>%
   kable( caption = .batch.labels[ 6 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b2, align = .align.b2, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b2, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b2, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b2 ) %>%
   add_header_above( .header.analysis.method.b2 )
 ```
@@ -519,7 +519,7 @@ tbl2f %>%
 tbl3a %>%
   kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b3, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b3 ) %>%
   add_header_above( .header.analysis.method.b3 )
 ```
@@ -529,7 +529,7 @@ tbl3a %>%
 tbl3b %>%
   kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b3, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b3 ) %>%
   add_header_above( .header.analysis.method.b3 )
 ```
@@ -539,7 +539,7 @@ tbl3b %>%
 tbl3c %>%
 kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b3, align = .align.b3, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b3, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b3, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b3 ) %>%
   add_header_above( .header.analysis.method.b3 )
 ```
@@ -565,7 +565,7 @@ kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
 tbl4a %>%
 kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep ) %>%
-  kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b4, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b4 ) %>%
   add_header_above( .header.analysis.method.b4 )
 ```
@@ -575,7 +575,7 @@ kable( caption = .batch.labels[ 1 ], row.names = FALSE, longtable = TRUE,
 tbl4b %>%
 kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b4, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b4 ) %>%
   add_header_above( .header.analysis.method.b4 )
 ```
@@ -585,13 +585,13 @@ kable( caption = .batch.labels[ 2 ], row.names = FALSE, longtable = TRUE,
 tbl4c %>%
 kable( caption = .batch.labels[ 3 ], row.names = FALSE, longtable = TRUE,
        col.names = .col.names.b4, align = .align.b4, booktabs = TRUE, linesep = .linesep) %>%
-  kable_styling( latex_options = .latex_options.b4, full_width = FALSE ) %>%
+  kable_styling( font_size = 7, latex_options = .latex_options.b4, full_width = FALSE ) %>%
   add_header_above( .header.randomization.method.b4 ) %>%
   add_header_above( .header.analysis.method.b4 )
 ```
 
 
-```{r batch-1-binY-binX_bias_examples, cache = TRUE, echo = FALSE, message = FALSE}
+```{r batch-1-binY-binX_bias_examples, eval = FALSE, cache = TRUE, echo = FALSE, message = FALSE}
 cat("Batch 1: bias (no subsetting)\n")
 with( metrics_batch1, summary( bias ))
 cat("Batch 1: bias (final subsetting)\n")
