@@ -32,7 +32,7 @@
 library("simulator");
 
 #' [ 'results_directory' contains folder 'files' with 'sim-{simulation_name}.Rdata' ] 
-batch_no <- 1;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
+batch_no <- 3;  # NOTE: if 'batch_no' is 1 or 2, will do data subsetting on separation status.
 simulation_name <- paste0("alloc-simulation-batch-", batch_no, "-of-4");
 results_directory <- paste0("/Users/Moschops/Documents/MSThesis/datasets/batch-", batch_no, "/");
 nsim <- 5010;  #' number of simulations (for pre-allocation)
@@ -218,6 +218,7 @@ if( keep_output_in_environment ){
   metrics_by_model <- vector( mode = "list", length = num_simulation_models );
   metrics_by_model_subsetted <- vector( mode = "list", length = num_simulation_models );
 }
+
 for( model_i in 1:num_simulation_models ){
   cat(paste0("[ Model ", model_i, " of ", num_simulation_models," ][-|       ] Loading output from simulation [ ", 
              simulation@name, " ]...\n")); ptm.all <- proc.time();
@@ -252,7 +253,7 @@ for( model_i in 1:num_simulation_models ){
       #' [ Get (Z,Y) output for corresponding alloc_method ]
       ZY_model_i <- output( simulation, subset = model_i, methods = alloc_name_k )@out
       if( alloc_name_k == "CAA-MI-2-PBA-0.70" ){
-        # only adjusted estimates.
+        #' TODO(michael): test to make sure there's no difference between adjusted and unadjusted estimates!
         glm_convergence_by_output_j[ , method_k_indices ] <- mapply( test_glm_convergence, draws_model_i, ZY_model_i, MoreArgs = list( adjustX = TRUE ))
       }else{
         glm_convergence_by_output_j[, method_k_indices ] <- t( mapply( test_glm_convergence_both_adj_unadj, draws_model_i, ZY_model_i ) )
@@ -272,9 +273,6 @@ for( model_i in 1:num_simulation_models ){
   id_sim <- paste0(model( simulation )[[ model_i ]]@params[ -index_exclude ], collapse = "-")
   cat(paste0("Unique ID for simulation: ", id_sim, "\n\n")); 
   
-  cat(paste0("[ Model ", model_i, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
-  cat(paste0("[ Model ", model_i, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
-  
   #' Define lists that will store output data
   num_outputs <- length( output_method_names );
   dfs_out_j <- vector( mode = "list", length = num_outputs );
@@ -283,6 +281,10 @@ for( model_i in 1:num_simulation_models ){
   metrics_by_out_j_subsetted_validse <- vector( mode = "list", length = num_outputs );
   
   true_trt_effect <- model( simulation )[[ model_i ]]@params$bZ
+  
+  cat(paste0("[ Model ", model_i, " ][---|      ] Converting Output objects to data frame...\n")); ptm <- proc.time();
+  cat(paste0("[ Model ", model_i, " ][----|     ] Computing metrics {power (p-value), power (rerandomized CI), power (wald CI), coverage, bias} for each Output object...\n"));
+  
   for( i in 1:length( out_model_i )){
     dfs_out_j[[ i ]]  <- data.frame(t(vapply( out_model_i[[ i ]]@out, function( .list ){ unlist( .list[1:9] )}, numeric(9))))
     dimnames(dfs_out_j[[i]])[[2]] <- c("est", "se", "t", "p", "adjusted", "rerandomized", "cilower", "ciupper", "num_rerandomizations")
@@ -327,8 +329,8 @@ for( model_i in 1:num_simulation_models ){
   }
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
-  #' Write output files to .csv?
   dfs_out_all <- do.call( rbind, dfs_out_j )
+  #' Write output files to .csv?
   if( write_outputfiles ){
     outputfile_name <- outputfile_names[ model_i ]
     if(!file.exists( outputfile_name )){
