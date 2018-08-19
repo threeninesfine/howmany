@@ -435,7 +435,7 @@ times <- sapply( 1:9, function( method_index ){ output( sim2 )[[ method_index ]]
 
 
 # --------------------------------------------------------------------------- #
-# --------------------- [ 10 July 2018 (Tuesday) ] -------------------------- #
+#' --------------------- [ 10 July 2018 (Tuesday) ] ------------------------- #
 # --------------------------------------------------------------------------- #
 #' Problem 11: Tables and figures
 #' Amalia Meier Magaret <amag@uw.edu>	Sat, Jul 7, 2018 at 2:08 PM
@@ -559,6 +559,202 @@ tbl4.power.un <- cbind( CR = tbl4.1.power.un[,"power.pvalue"],
                        CAA_model = tbl4.3.power.un[,"power.pvalue"], 
                             CAA_rerand = tbl4.4.power.un[,"power.rerand"], #' TODO(michael): run unadjusted, rerandomized simulations!
                        tbl4.3.power.un[,-1] )
+
+# --------------------------------------------------------------------------- #
+#' --------------------- [ 18 August 2018 (Saturday) ] ---------------------- #
+# --------------------------------------------------------------------------- #
+
+# --------------------------------------------------------------------------- #
+#' [ ref: https://s3.amazonaws.com/assets.datacamp.com/img/blog/data+table+cheat+sheet.pdf ]
+#' [ access date: 18 August 2018 15:20 ]
+# --------------------------------------------------------------------------- #
+#' [ We run through an example of using data.table for manipulations ]
+library("data.table")
+set.seed(45L)
+DT <- data.table(V1 = c(1L, 2L),
+                 V2 = LETTERS[1:3],
+                 V3 = round(rnorm(4), 4),
+                 V4 = 1:12)
+
+#' [ SECTION 2: Manipulating on rows in (I) ]
+#' [ Subset row by number ]
+DT[3:5, ]
+#' [ Subset rows in (i) based on condition ]
+DT[ V2 == "A" ]
+#' [ Subset rows in (i) based on condition ]
+DT[ V2 %in% c("A", "C") ]
+
+#' [ SECTION 2: Manipulating on columns in (J) ]
+#' [ select column, returns vector ]
+DT[, V2]
+#' [ select column, return as data frame (see: list aliasing) ]
+DT[, .(V2)]
+DT[, .(V2, V3)]
+#' [ call functions in j ]
+DT[, sum(V1)]
+DT[,.(sum(V1),sd(V3))]
+DT[,.(Aggregate = sum(V1), sd.V3 = sd(V3))]
+#' [ note recycling of values here: sd(v3) is only one value ]
+DT[,.(V1, sd.V3 = sd(V3))]
+foo <- quote({print(V2); plot(V3); NULL}) #' [ create expression ]
+DT[,eval(foo)] #' [ evaluate expression ]
+
+#' [ SECTION 3: Doing J BY group ]
+#' [ EX: doing j by `group`]
+DT[, .(V4.Sum = sum(V4)), by = V1]
+#' [ EX: doing j by several groups using .() ]
+DT[, .(V4.Sum = sum(V4)), by = .(V1, V2)]
+#' [ EX: call functions in by ]
+DT[, .(V4.Sum = sum(V4)), by = sign(V1 - 1)]
+#' [ EX: call functions in by, assign new column names]
+DT[, .(V4.Sum = sum(V4)), by = .(V1.sign = sign(V1 - 1))]
+#' [ EX: call functions in by, only on subset, assign new column names]
+DT[1:5, .(V4.Sum = sum(V4)), by = .(V1.sign = sign(V1 - 1))]
+#' [ using `.N` to get total number of observations of each group
+DT[,.N, by = V1]
+
+#' [ SECTION 4: Adding/updating columns by reference in J using `:=`]
+#' [ EX: updating column `V1` by reference using `:=`]
+DT[, V1 := round(exp(V1),2)]
+#' [ EX: updating several columns by reference using `:=`]
+DT[, c("V1", "V2") := list(round(exp(V1), 2), LETTERS[4:6])]
+DT
+#' [ using functional `:=`.] Note: using `[]` prints data.table after call!
+DT[, ':=' (V1 = round(exp(V1), 2),
+           V2 = LETTERS[4:6])][]
+#' [ EX: remove column instantly ]
+DT[, V1 := NULL ]
+
+#' [ SECTION 5: Indexing and keys ]
+setkey(DT, V2, verbose = TRUE)  # sets V2 as key
+DT["D"]  # using the key to access rows (i) where V2 == "D"
+DT[c("D", "F")] # using the key to access rows (i) where V2 == "D" or "F"
+#' [ EX: using option `mult` to control which row matches returned]
+DT["D", mult = "first"]
+DT["D", mult = "last"]
+#' [ EX: using option `nomatch` to specify default return value when no match exists ]
+DT[c("A","D")]
+DT[c("A","D"), nomatch = 0]
+#' [ EX: using `by=.EACHI` groups by each subset of known groups in `i`]
+DT[c("D", "E"), sum(V4), by=.EACHI]
+
+#' [ EX: setting key to multiple variables ]
+setkey(DT, V1, V2)
+DT[.(2,"C")]
+DT[.(2,c("A", "C"))]
+
+#' [ SECTION 6: Advanced data.table operations ]
+#' .N contains the number of rows or the last row
+#' [ EX: using .N in row accession `i` ]
+DT[.N-1]  # returns next to last row
+#' [ EX: using .N in columns (see how many rows there are)]
+DT[,.N]  # returns number of rows
+
+#' [ EX: using list aliasing with .() ]
+DT[, mean(V3), by = .(V1, V2)]
+#' [ EX: using .SD to hold values of all columns ]
+DT[, print(.SD), by=V2]  # `.SD` is the sub-data.table
+DT[,.SD[c(1,.N)], by = V2]
+#' [ EX: calculate sum of all columns grouped by V2 ]
+DT[, lapply(.SD, sum), by = V2]
+#' [ EX: use `.SDcols` to specify subset of columns of `.SD` to use in `j`]
+DT[, lapply(.SD, sum), by = V2, .SDcols = c("V3", "V4")]
+
+#' [ SECTION 7: Chaining helps tack expressions together and avoid intermediate assignments ]
+#' [ EX1: without chaining]
+DT <- DT[, .(V4.Sum = sum(V4)), by = V1]
+DT[ V4.Sum > 40 ]
+#' [ EX2: chaining (corresponds to `having` in SQL) ]
+DT[, .(V4.Sum = sum(V4)), by = V1 ][V4.Sum > 40]
+#' [ EX3: chaining, order results by v1 ]
+DT[, .(V4.Sum = sum(V4)), by = V1 ][order(-V1)]
+
+#' [ SECTION 8: using the set()-family ]
+#' [ set() is used to repeatedly update rows and columns by reference. ]
+
+# --------------------------------------------------------------------------- #
+#' [ ref: http://brooksandrew.github.io/simpleblog/articles/advanced-data-table/]
+#' [ access date: 18 August 2018 15:20 ]
+# --------------------------------------------------------------------------- #
+dt <- data.table( mtcars )
+#' [ subset data to only `cyl` and `gear` ]
+dt2 <- dt[, .(gear, cyl)]
+#' [ get unique values of `gear` by `cyl` ]
+dt[, unique(gear), by = cyl]
+#' [ summarize table (short and narrow) ]
+#' [ add all categories of gear for each cyl ]
+dt[, gearsL := .(list(unique(gear))), by = cyl]
+dt[,.(gear, cyl, gearsL)]
+
+#' [ EX: accessing elements from a column of lists ]
+dt[, gearL1 := lapply( gearsL, function(x) x[2] )]
+dt[, gearS1 := sapply( gearsL, function(x) x[2] )] 
+all( dt[,.(gearL1)] == dt[,.(gearS1)] )  #' `gearL1` and `gearS1` are the same
+
+#' [ EX1: accessing elements from a column of lists, updated]
+dt[, gearL1 := lapply( gearsL, `[`, 2) ]
+
+#' [ EX: exclude current row in calculation (useful for e.g. comparing observations to mean)]
+dt[, other_gear:= mapply(function(x,y) setdiff(x,y), x = gearsL, y = gear)]
+dt[, other_gear:= mapply(setdiff, gearsL, gear)]
+head( dt )
+
+#' [ EX: suppressing intermediate output using {} ]
+dt <- data.table(mtcars)
+#' [ EX1A: compute difference from mean MPG, rounded to 2 digits. only returns last var `tmp3` as unnamed]
+dt[,{tmp1 = mean(mpg); tmp2 = mean(abs(mpg-tmp1)); tmp3 = round(tmp2, 2)}, by = cyl] 
+#' [ EX1B: pass named list of what we want to keep ]
+dt[,{meanmpg= mean(mpg); tmp2 = mean(abs(mpg - meanmpg)); tmp3 = round(tmp2, 2); list(tmp2=tmp2, tmp3=tmp3)}, by = cyl]
+#' [ EX1C: can write without semicolons (separate by lines) ]
+dt[,{meanmpg = mean(mpg)
+     tmp2 = mean(abs(mpg - meanmpg))
+     tmp3 = round(tmp2, 2)
+     list(tmp2 = tmp2, tmp3 = tmp3)},
+   by = cyl]
+
+#' [ FAST LOOPING WITH SET ]
+#' [ example: assign matrix ]
+M = matrix(1, nrow = 1e5, ncol = 1e2)
+DF <- as.data.frame( M )
+DT <- as.data.table( M )
+system.time(for( i in 1:1000 ) DT[i, V1 := i])
+system.time(for( i in 1:1000 ) M[i, 1L] <- i) 
+system.time(for( i in 1:1000 ) M[i, 1] <- i) 
+system.time(for( i in 1:1000 ) set(DT, i, 1L, i))
+#' NOTE: using `1L` vs. `1` [ may cause it to run faster and consume less memory ]
+#' [ ref: https://stackoverflow.com/questions/7014387/whats-the-difference-between-1l-and-1 ]
+
+#' [ Q: what is a useful example of using `set`? ]
+#' [ A: applying a function to a subset of columns using `.SDcols` while preserving untouched cols ]
+dt <- data.table(mtcars)[,1:5, with = FALSE ] #' TODO(michael): why use `with = FALSE`?`
+for(j in c(1L, 2L, 4L)) set(dt, j=j, value=-dt[[j]])
+for(j in c(3L, 5L)) set(dt, j=j, value=paste0(dt[[j]], '!!'))
+head( dt )
+
+#' [ FEATURE: using shift for lead/lag vectors and lists ]
+dt <- data.table( mtcars )[, .(mpg, cyl)] 
+dt[, mpg_lag1 := shift(mpg, 1)]
+dt[, mpg_forward1 := shift( mpg, 1, type = 'lead' )]
+
+#' [ EXAMPLE 2: `shift` with `by` ]
+# creating some data
+n <- 30
+dt <- data.table(
+  date = rep(seq(as.Date('2010-01-01'),
+                 as.Date('2015-01-01'),
+                 by = 'year')),
+  ind = rpois(n, 5),
+  entity = sort(rep(letters[1:5], n/5))
+)
+#' use `set`: important for ordering
+setkey( dt, entity, date )
+#' [ by entity, divide current `ind` by previous `ind` and subtract 1 ]
+dt[, indpct_fast := (ind/shift( ind, 1 ) - 1), by = entity]
+
+lagpad <- function(x, k){ c(rep(NA, k),x)[1:length(x)]}
+dt[, indpct_slow := (ind/lagpad(ind,1) - 1), by = entity]
+
+#' [ end 17:00 ]
 
 
 
