@@ -80,40 +80,71 @@ b4_bias <- batch4_make_summary_tables( metric_df = metrics_batch4, metric = "bia
 #' -------------------------------------------------------------------------- #
 #'                      [ Print summary tables ] 
 #' -------------------------------------------------------------------------- #
-#' [ Batch 1: Binary Y, binary X ]
 b1_mod_params <- c( "n", "Pr( Y )", "Pr( X )", "bZ", "bX" )
-make_kable( b1_coverage, model_params = b1_mod_params, tbl_caption = "Batch 1 (Binary Y, Binary X): Coverage probability" )
-make_kable( b1_medbias, model_params = b1_mod_params, tbl_caption = "Batch 1 (Binary Y, Binary X): Median bias" )
-make_kable( b1_power, model_params = b1_mod_params, tbl_caption = "Batch 1 (Binary Y, Binary X): Power" )
+b2_mod_params <- c( "n", "Pr( Y )", "bZ", "bX" )
+b3_mod_params <- c( "n", "Pr( X )", "bZ", "bX" )
+b4_mod_params <- c( "n", "bZ", "bX" )
 
-make_kable( b1_sub_coverage, model_params = c("Avg. nsims", b1_mod_params), 
-            tbl_caption = "Batch 1 (Binary Y, Binary X): Coverage probability, subsetted" )
-make_kable( b1_sub_medbias, model_params = c("Avg. nsims", b1_mod_params), 
-            tbl_caption = "Batch 1 (Binary Y, Binary X): Median bias, subsetted" )
-make_kable( b1_sub_power, model_params = c("Avg. nsims", b1_mod_params), 
-            tbl_caption = "Batch 1 (Binary Y, Binary X): Power, subsetted" )
+#' [ Batch 1: Binary Y, binary X ]
+print( b1k_cov <- make_kable( b1_coverage, model_params = b1_mod_params, tbl_caption = "Batch 1 (Binary Y, Binary X): Coverage probability" ) )
+print( b1k_medbias <- make_kable( b1_medbias, model_params = b1_mod_params, tbl_caption = "Batch 1 (Binary Y, Binary X): Median bias" ) )
+print( b1k_power <- make_kable( b1_power, model_params = b1_mod_params, tbl_caption = "Batch 1 (Binary Y, Binary X): Power" ) )
+
+print( b1k_sub_cov <- make_kable( b1_sub_coverage, model_params = c("Avg. nsims", b1_mod_params), tbl_caption = "Batch 1 (Binary Y, Binary X): Coverage probability, subsetted" ) )
+print( b1k_sub_medbias <- make_kable( b1_sub_medbias, model_params = c("Avg. nsims", b1_mod_params), tbl_caption = "Batch 1 (Binary Y, Binary X): Median bias, subsetted" ) )
+print( b1k_sub_power <- make_kable( b1_sub_power, model_params = c("Avg. nsims", b1_mod_params), tbl_caption = "Batch 1 (Binary Y, Binary X): Power, subsetted" ) )
 
 #' [ Batch 2: Binary Y, continuous X ]
-b2_mod_params <- c( "n", "Pr( Y )", "bZ", "bX" )
-make_kable( b2_coverage, model_params = b2_mod_params, tbl_caption = "Batch 2 (Binary Y, Continuous X): Coverage probability" )
-make_kable( b2_medbias, model_params = b2_mod_params, tbl_caption = "Batch 2 (Binary Y, Continuous X): Median bias" )
-make_kable( b2_power, model_params = b2_mod_params, tbl_caption = "Batch 2 (Binary Y, Continuous X): Power" )
+print( b2k_cov <- make_kable( b2_coverage, model_params = b2_mod_params, tbl_caption = "Batch 2 (Binary Y, Continuous X): Coverage probability" ) )
+print( b2k_medbias <- make_kable( b2_medbias, model_params = b2_mod_params, tbl_caption = "Batch 2 (Binary Y, Continuous X): Median bias" ) )
+print( b2k_power <- make_kable( b2_power, model_params = b2_mod_params, tbl_caption = "Batch 2 (Binary Y, Continuous X): Power" ) )
 
-make_kable( b2_sub_coverage, model_params = c("Avg. nsims", b2_mod_params), 
-            tbl_caption = "Batch 2 (Binary Y, Continuous X): Coverage probability, subsetted" )
-make_kable( b2_sub_medbias, model_params = c("Avg. nsims", b2_mod_params), 
-            tbl_caption = "Batch 2 (Binary Y, Continuous X): Median bias, subsetted" )
-make_kable( b2_sub_power, model_params = c("Avg. nsims", b2_mod_params), 
-            tbl_caption = "Batch 2 (Binary Y, Continuous X): Power, subsetted" )
+print( b2k_sub_cov <- make_kable( b2_sub_coverage, model_params = c("Avg. nsims", b2_mod_params), tbl_caption = "Batch 2 (Binary Y, Continuous X): Coverage probability, subsetted" ) )
+print( b2k_sub_medbias <- make_kable( b2_sub_medbias, model_params = c("Avg. nsims", b2_mod_params), tbl_caption = "Batch 2 (Binary Y, Continuous X): Median bias, subsetted" ) )
+print( b2k_sub_power <- make_kable( b2_sub_power, model_params = c("Avg. nsims", b2_mod_params), tbl_caption = "Batch 2 (Binary Y, Continuous X): Power, subsetted" ) )
 
 #' [ Batch 3: Continuous Y, binary X ]
-b3_mod_params <- c( "n", "Pr( X )", "bZ", "bX" )
-make_kable( b3_coverage, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Coverage probability" )
-make_kable( b3_medbias, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Median bias" )
-make_kable( b3_power, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Power" )
+print( b3k_cov <- make_kable( b3_coverage, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Coverage probability" ) )
+print( b3k_medbias <- make_kable( b3_medbias, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Median bias" ) )
+print( b3k_power <- make_kable( b3_power, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Power" ) )
 
 #' [ Batch 4: Continuous Y, continuous X ]
-b4_mod_params <- c( "n", "bZ", "bX" )
-make_kable( b4_coverage, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Coverage probability" )
-make_kable( b4_medbias, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Median bias" )
-make_kable( b4_power, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Power" )
+print( b4k_cov <- make_kable( b4_coverage, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Coverage probability" ) )
+# print( b4k_medbias <- make_kable( b4_medbias, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Median bias" ) )
+print( b4k_power <- make_kable( b4_power, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Power" ) )
+
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Write summary tables to file ] 
+#' -------------------------------------------------------------------------- #
+output_tex_files <- TRUE
+
+#' [ sink_tbl() takes kable table `kable_table` and writes it `file_name` in `out_dir`. ]
+sink_tbl <- function( kable_table, file_name, out_dir = "/Users/Moschops/Documents/MSThesis/adaptive-allocation/tables/" ){
+  sink(paste0( out_dir, file_name ));
+  print( kable_table );
+  sink( NULL );
+}
+
+if( output_tex_files ){
+  mapply(sink_tbl, list(b1k_cov, b1k_medbias, b1k_power), 
+         list("b1_coverage.tex", "b1_median_bias.tex", "b1_power.tex"))
+  mapply(sink_tbl, list(b1k_sub_cov, b1k_sub_medbias, b1k_sub_power), 
+         list("b1_sub_coverage.tex", "b1_sub_median_bias.tex", "b1_sub_power.tex"))
+  
+  mapply(sink_tbl, list(b2k_cov, b2k_medbias, b2k_power), 
+         list("b2_coverage.tex", "b2_median_bias.tex", "b2_power.tex"))
+  mapply(sink_tbl, list(b2k_sub_cov, b2k_sub_medbias, b2k_sub_power), 
+         list("b2_sub_coverage.tex", "b2_sub_median_bias.tex", "b2_sub_power.tex"))
+  
+  mapply(sink_tbl, list(b3k_cov, b3k_medbias, b3k_power), 
+         list("b3_coverage.tex", "b3_median_bias.tex", "b3_power.tex"))
+  
+  mapply(sink_tbl, list(b4k_cov, 
+#                        b4k_medbias, 
+                        b4k_power), 
+         list("b4_coverage.tex", 
+#              "b4_median_bias.tex", 
+              "b4_power.tex"))
+}
