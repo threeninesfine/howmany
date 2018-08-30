@@ -756,5 +756,208 @@ dt[, indpct_slow := (ind/lagpad(ind,1) - 1), by = entity]
 
 #' [ end 17:00 ]
 
+# --------------------------------------------------------------------------- #
+#' --------------------- [ 20 August 2018 (Monday) ] ------------------------ #
+# --------------------------------------------------------------------------- #
 
+#' [ want to learn how to compute values on simulations, subsetting on `sim`.]
+#' [ first, we look at an example from stackoverflow.com: ]
+#' [ ref: https://stackoverflow.com/questions/8508482/what-does-sd-stand-for-in-data-table-in-r ]
+#' [ time: 16:37 ]
+
+library("data.table") 
+library("magrittr") # some piping can be beautiful
+library("Lahman")
+Teams = as.data.table(Teams)
+# *I'm selectively suppressing the printed output of tables here*
+Teams
+Pitching = as.data.table(Pitching)
+# subset for conciseness
+Pitching = Pitching[ , .(playerID, yearID, teamID, W, L, G, ERA)]
+Pitching
+#' [ column subsetting using .SDcols ]
+Pitching[ , .SD, .SDcols = c('W', 'L', 'G')]
+
+# see ?Teams for explanation; these are various IDs
+#   used to identify the multitude of teams from
+#   across the long history of baseball
+fkt = c('teamIDBR', 'teamIDlahman45', 'teamIDretro')
+#' confirm that they're stored as `character` [ aka apply over all columns in `fkt`: are characters? ]
+Teams[ , sapply(.SD, is.character), .SDcols = fkt ]
+#' [ set these to factor. ]
+Teams[ , (fkt) := lapply( .SD, factor ), .SDcols = fkt ]
+#' [ we could even use .SDcols to convert all factors to characters. ]
+fkt_idx <- which(sapply( Teams, is.factor ))
+Teams[ , (fkt_idx) := lapply( .SD, as.character ), .SDcols = fkt_idx ]
+#' [ convert all columns which contain `team` back to `factor`:]
+team_idx = grep('team', names( Teams ), value = TRUE)
+Teams[ , (team_idx) := lapply( .SD, factor ), .SDcols = team_idx ]
+
+#' [ Controlling a Model's RHS ]
+#' [Varying model specification is a core feature of robust statistical analysis. 
+#' [Let's try and predict a pitcher's ERA (Earned Runs Average, a measure of performance) 
+#' [using the small set of covariates available in the Pitching table. 
+#' [How does the (linear) relationship between W (wins) and ERA vary 
+#' [depending on which other covariates are included in the specification?
+#' [this generates a list of the 2^k possible extra variables
+#'  [ for models of the form ERA ~ G + (...)
+extra_var = c('yearID', 'teamID', 'G', 'L')
+models =
+  lapply(0L:length(extra_var), combn, x = extra_var, simplify = FALSE) %>%
+  unlist(recursive = FALSE)
+
+#' [here are 16 visually distinct colors, taken from the list of 20 here:
+#'   [https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+col16 = c('#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4',
+          '#46f0f0', '#f032e6', '#d2f53c', '#fabebe', '#008080', '#e6beff',
+          '#aa6e28', '#fffac8', '#800000', '#aaffc3')
+
+par(oma = c(2,0,0,0))
+sapply(models, function(rhs) {
+  #' [using ERA ~ . and data = .SD, then varying which
+  #'   [columns are included in .SD allows us to perform this
+  #'   [iteration over 16 models succinctly.
+  #'   [coef(.)['W'] extracts the W coefficient from each model fit
+  Pitching[ , coef(lm( ERA ~ ., data = .SD))['W'], .SDcols = c('W', rhs)]
+}) %>% barplot( names.arg = sapply( models, paste, collapse = '/'),
+                main = 'Wins Coefficient with Various Covariates',
+                col = col16, las = 2L, cex.names = .8)
+
+
+'Level 1: [ Q ] simulations { "n", "typeY", "pY", "numX", "typeX", "pX", "bX", "bZ", "bT" }'
+'Level 2: [ nsim x nmethods ] '
+'Level 1(a), 1(b), 1(c): [ nsim ] results {est, se, t, p, ci }'
+'Level 1b: [ '
+
+#' [ for each simulation, ]
+#' [ simulate data ]
+#' [ allocate ]
+
+require("data.table")
+batch_no <- 3;
+.param_dir <- "/Users/Moschops/Documents/MSThesis/results/parameters/"
+params <- read.csv(paste0(.param_dir, "parameters-alloc-simulation-batch-", batch_no, "-of-4.csv"))
+
+dt_params <- as.data.table( params )
+old_colnames <- c( "trial_size","outcome_type","outcome_marginal_prevalence","prognostic_factor_number",
+                   "prognostic_factor_type","prognostic_factor_prevalence","alpha","prognostic_factor_effect_size", 
+                   "treatment_assignment_effect_size","entry_time_effect_size","allocation_ratio","id_sim","model_no" )
+
+new_colnames <- c( "n", "typeY", "pY", "numX", "typeX", "pX", "alpha", "bX", "bZ", "bT", "palloc", "idsim", "modelno")
+setnames( dt_params, old = old_colnames, new = new_colnames )
+dt_params[, idsim := NULL ]
+dt_params[, batchno := batch_no ]
+#' [ makes more sense to have 'simulation' on row and variables on column, and separate data.tables for each simulation. ]
+
+
+
+alloc_CR <- function( n, allocation_ratio = 0.5 ){
+  return(rbinom( n = n, prob = allocation_ratio, size = 1 ))
+}
+
+require("magrittr")  #' `for using piping syntax %>%`
+
+set.seed(1234)
+alloc_CR(n=32)
+#'  [1] 0 1 1 1 1 1 0 0 1 1 1 1 0 1 0 1 0 0 0 0 0 0 0 0 0 1 1 1 1 0 0 0
+foo <- dtf[ sim %in% 1:2 ]
+foo[ , Z := alloc_CR(n=32) ]
+
+
+nsim <- 5010
+# for( mod_i in seq_len(dim( dt_params )[[1]])){
+for( mod_i in 1 ){
+  pX <- dt_params$pX[ mod_i ]
+  numX <- dt_params$numX[ mod_i ]
+  
+  pmfX <- c( 1 - pX, pX )
+  .probsX <- rep( list( pmfX ), numX )
+  
+  #' [ simulate data and create data.table ]
+  dtf <- as.data.table( simulate_data(n = dt_params$n[ mod_i ],
+                       typeX = dt_params$typeX[ mod_i ],
+                       numX = dt_params$numX[ mod_i ],
+                       probsX = .probsX,
+                       nsim = 5010 ))
+
+
+  x_inds <- grep('^X', names( dtf ), value = FALSE)]
+
+  setkey( dtf, sim )
+  dtf[, Z_SBR := NULL]
+  Z_CR <- do.call('c', replicate( nsim, alloc_CR(n = dt_params$n[ mod_i ]), simplify = FALSE ))
+  Z_SBR <- dtf[, .SDcols = c("X1", "X2"), by = sim ] %>% alloc_SBR
+  dtf[, Z_CR := 0L]
+  cr_ind <- which( names( dtf ) == 'Z_CR' )
+  for( i in seq_len( dtf[, .N] ) ){
+    set( dtf, i, "Z_CR", Z_CR[i])
+  }
+}
+
+alloc_SBR <- function( DT, block_size = 8 ){
+  #' alloc_SBR()
+  #' 1. counts membership in each strata
+  #' 2. computes minimum number of blocks to allocate all subjects
+  #' 3. assigns subjects based on their stratum membership
+  Z <- rep( NA, DT[,.N])
+  names( Z ) <- apply( DT, 1, paste0, collapse = "")
+  strata_size <- table(names( Z ))
+  num_randomized_blocks <- ceiling( strata_size / block_size );
+  for( strata_i in seq_len( strata_size )){
+    alloc_sequence <- 
+      do.call("c", replicate( n = num_randomized_blocks[ strata_i ], 
+                              expr = sample(x=rep(0:1, ceiling( block_size / 2 )),
+                                               size = block_size, replace = FALSE), simplify=FALSE))
+    Z[names(Z) == names( strata_size )[ strata.i ]] <- alloc_sequence[ 1:strata_size[ strata_i ] ];
+  }
+  return(list(Z = Z))
+}
+
+Z_SBR <- rep( NA, times = model$trial_size )
+names( Z_SBR ) <- strata_labels; # get strata labels for each observation
+strata_size <- table( strata_labels );  # get table of observed counts for each strata.
+num_randomized_blocks <- ceiling( strata_size / block_size );   # for each strata, get minimum number of blocks to allocate all subjects.
+for( strata.i in 1:length( strata_size ) ){
+  allocation_vec <- do.call("c", replicate(n = num_randomized_blocks[ strata.i ],
+                                           expr = sample( x=rep(0:1, ceiling( block_size / 2 )),
+                                                          size = block_size, replace=FALSE), simplify=FALSE));
+  # then associate each strata member with an assignment.
+  Z_SBR[ names(Z_SBR) == names( strata_size )[ strata.i] ] <- allocation_vec[ 1:strata_size[ strata.i] ];
+}
+
+  return(list( Z = Z_SBR ))
+}
+#' [ simulate_data() ]
+simulate_data <- function(n, typeX, numX, probsX, nsim ){
+  simdata <- matrix( nrow = n * nsim, ncol = numX + 2 )
+  colnames( simdata ) <- c(paste0("X", 1:numX), "Tobs", "sim")
+  
+  #' [Prognostic factors (X)]
+  if( typeX == "binary" ){
+    simdata[,1:numX] <- sapply( probsX, FUN = function( .probs ){ .levels = length( .probs );
+    sample( 0:(.levels - 1), size = n * nsim, replace = TRUE, prob = .probs )})
+  }else{
+    simdata[,1:numX]  <- matrix(rnorm( n * numX * nsim ),
+                                nrow = n * nsim, ncol = numX);
+    X_cut <- matrix( simdata[, 1:numX], ncol = numX );
+    X_cut[] <- vapply( simdata[,1:numX], function( x, cutpoint = 0 ){ x >= cutpoint }, numeric(1) )
+    colnames( X_cut ) <- paste0("X", 1:numX, "d")
+  }
+  
+  #' [Entry time (T)] Uniform entry time between -1/2 and 1/2, sorted for each trial.
+  simdata[, "Tobs" ] <- replicate(n = nsim, sort(runif(n = n, min=-1/2, max=1/2)))
+  simdata[, "sim" ] <- sapply(1:nsim, function(.sim_number){rep( .sim_number, n )})
+  if( typeX == "binary" ){
+    return( simdata )
+  }else{
+    return( cbind( simdata, X_cut ))
+  }
+}
+
+dt[, simdata:= mapply(simulate_data, n, typeX, numX, pX, MoreArgs=list(nsim = 5010))]
+
+
+#' [ Question 1: Does data.table allow you to store arbitrary elements (dfs, etc?) ]
+#' 
+#' [ Question 2: Can we store each sim variable in a column? ]
 
