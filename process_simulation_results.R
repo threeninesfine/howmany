@@ -15,8 +15,8 @@
 # --------------------------------------------------------------------------- # 
 #' [ 9 August 2018 (Thursday) ] 
 #' [11 : 45] Added settings to customize:
-#' >> script performance (write_progressfile, write_outputfiles, etc)
-#' >> Memory persistence and deallocation ('keep_output_in_environment', 'remove_output_after_sourcing')
+#' >> script performance (write_progressfile, .write_outputfiles, etc)
+#' >> Memory persistence and deallocation ('.keep_output_in_environment', '.remove_output_after_sourcing')
 #' [ 12:15 ]  TODO(michael): update flags for identifying complete separation!
 #' [ 13:32 ] output references are broken in cases where output objects deleted manually. 
 #' [ 14:28 ] FIXED! Note: used get_simulation_with_all_files() to load in simulation.
@@ -43,8 +43,6 @@ load_simulation_from_all_files <- TRUE
 ###############################################################################
 #' [0AA] Define settings to identify separation status 
 ###############################################################################
-use_glm_convergence_criterion <- TRUE;  # test glm() for convergence to detect separation?
-
 #' [ anyzero() tests each Y:Z outcome:treatment allocation pair for separation.    ]
 #' [ GLM will not converge if any cell of the 2x2 (Z x Y) contingency table is 0.  ]
 anyzero <- function( .draw, show.table  = TRUE ){
@@ -89,26 +87,23 @@ test_glm_convergence_both_adj_unadj <- function( drawobj, outobj ){
            un = glm_test_un$converged))
 }
 
-
-
 ###############################################################################
 #' [0A] Define settings
 ###############################################################################
-timestamp_output <- TRUE;  # Add 'Y-m-d_H-M' to output folder?
-round_results <- TRUE;  # Round results when writing table to 'digits_to_round_to'?
-digits_to_round_to <- 3;
+.timestamp_output <- TRUE;  # Add 'Y-m-d_H-M' to output folder?
+.round_results <- FALSE;  # Round results when writing table to '.digits_to_round_to'?
+.digits_to_round_to <- 3;
 
-write_progressfile <- FALSE;  # Write progress file to .csv?
-write_parameterfile <- FALSE;  # Write parameter file to .csv?
-write_outputfiles <- FALSE;  # Write raw output files to .csv after processing from .Rdata?
+.write_parameterfile <- TRUE;  # Write parameter file to .csv?
+.write_outputfiles <- FALSE;  # Write raw output files to .csv after processing from .Rdata?
 
-keep_output_in_environment <- TRUE;  # make list of lists containing output?
-remove_output_after_sourcing <- FALSE;  # de-allocate variables after sourcing?
+.keep_output_in_environment <- TRUE;  # make list of lists containing output?
+.remove_output_after_sourcing <- TRUE;  # de-allocate variables after sourcing?
 
 ###############################################################################
 #' [0B] Specify file / directory I/O 
 ###############################################################################
-if( timestamp_output ){
+if( .timestamp_output ){
   simulation_timestamp <- strftime(Sys.time(), format = "%Y-%m-%d_%H-%M")
   output_directory <- paste0( results_directory, "../../results/output_", simulation_timestamp, "/" )
   if(!dir.exists( output_directory )){
@@ -125,8 +120,6 @@ if( timestamp_output ){
 metricfile_name <- paste0( output_directory, "metrics-", simulation_name, ".csv" ); 
 #' [ 'metricfile_name_subset_valid' are metrics subsetted on 'valid' draws (i.e. non-separation) ] 
 metricfile_name_subset_valid <- paste0( output_directory, "metrics-subset-", simulation_name, ".csv" ); 
-#' [ 'progressfile_name' contains the progress of simulations (ie. nsims by analysis method) ]
-progressfile_name <- paste0( output_directory, "progress-", simulation_name, ".csv");
 #' [ 'parameterfile_name' contains parameters by 'id_sim' (string of params) and 'modelno' ]
 parameterfile_name <- paste0( output_directory, "parameters-", simulation_name, ".csv");
 #' [ 'outputfile_name' contains output in .csv format (compared to .Rdata) ]
@@ -179,7 +172,7 @@ params_by_model <- as.data.frame(t(sapply( sim_models, function( .model ){ unlis
 params_by_model$id_sim <- apply( params_by_model, 1, function( .string ) paste0( .string, collapse = "-" ) )
 # 'model_no' is a simpler (integer) lookup of models for this simulation.
 params_by_model$model_no <- dimnames( params_by_model )[[1]]
-if( write_parameterfile ){
+if( .write_parameterfile ){
   write.csv( params_by_model, file = parameterfile_name, row.names = FALSE )
   cat(paste0("Success! parameter table written to ", parameterfile_name, ". \n"))
 }
@@ -189,38 +182,18 @@ cat("Elapsed time: \n"); print( proc.time() - ptm );
 outputfile_names <- paste0( simulation@name, "-model-", params_by_model$model_no, "-output.csv" )
 
 ###############################################################################
-#' [2] Simulation progress table by 'id_sim'
-###############################################################################
-if( write_progressfile ){
-  #' We will track progress on these methods:
-  methods_all <- c( method_names_short, method_names_rerand, method_names_deterministic )
-
-  cat("Creating progress table for simulation results... \n"); ptm <- proc.time();
-  methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")))
-  colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
-  
-  progress_table <- data.frame( do.call("rbind", rep(list( methods_all_parsed ), times = length(model( simulation )))) )
-  dimnames( progress_table )[[ 2 ]] <- c( "method_name", "alloc_method", "analysis_method", "adjustment")
-  progress_table$modelno <- do.call("c", sapply(1:length(model( simulation )), function(.x) rep( .x, length( methods_all )), simplify = FALSE))
-  progress_table$id_sim <- do.call("c", sapply( params_by_model$id_sim, function(.x) rep( .x, length( methods_all )), simplify = FALSE))
-  cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
-}
-
-
-###############################################################################
 #' [2] Process results
 ###############################################################################
 #' [ `alloc_methods` are the allocation methods for evaluation ]
 alloc_methods <- c("CR", "SBR", "CAA-MI-2-PBA-0.70", "CAA-MI-2-PBA-1.00"); 
 num_simulation_models <- length(model( simulation, reference = TRUE ))  # number of models with data to be analyzed
-if( keep_output_in_environment ){
+if( .keep_output_in_environment ){
   dfs_by_model <- vector( mode = "list", length = num_simulation_models );
   metrics_by_model <- vector( mode = "list", length = num_simulation_models );
   metrics_by_model_subsetted <- vector( mode = "list", length = num_simulation_models );
 }
 
-# for( model_i in 1:num_simulation_models ){
-for( model_i in 1 ){
+for( model_i in 1:num_simulation_models ){
   cat(paste0("[ Model ", model_i, " of ", num_simulation_models," ][-|       ] Loading output from simulation [ ", 
              simulation@name, " ]...\n")); ptm.all <- proc.time();
   #' Try loading simulation output for model 'model_i' with output names in 'methods_to_process'
@@ -296,8 +269,8 @@ for( model_i in 1 ){
     dfs_out_j[[ out_j ]]$bias <- with( dfs_out_j[[ out_j ]], est - true_trt_effect )
     #' [ NEW 9-Aug-18: add in separation status indicator, computed earlier in 'separation_status' matrix ]
     if( batch_no %in% 1:2 ){
-      alloc_method_out_model_i <- methods_included_parsed[ out_j ,"alloc_method"]
-      dfs_out_j[[ out_j ]]$separation_status <- separation_status[, alloc_method_out_model_i]
+      alloc_method_out_model_i <- methods_included_parsed[ out_j, "alloc_method" ]
+      dfs_out_j[[ out_j ]]$separation_status <- separation_status[, alloc_method_out_model_i ]
       dfs_out_j[[ out_j ]]$glm_converged <- glm_convergence_by_output_j[, out_j ]
     }
     #' Get simulation metrics: 
@@ -307,13 +280,13 @@ for( model_i in 1 ){
     methods_included_parsed[ out_j, "nsim"] <- dim( dfs_out_j[[ out_j ]] )[1]
     #' Compute means of relevant statistics
     indices_colMeans <- which( dimnames(dfs_out_j[[ out_j ]])[[2]] %in% c("adjusted","rerandomized", "power.pvalue", 
-                                                                    "power.rerand","power.ci", "coverage", "bias"))
+                                                                          "power.rerand","power.ci", "coverage", "bias"))
     metrics_by_out_j[[ out_j ]] <- c(colMeans(dfs_out_j[[ out_j ]][, indices_colMeans]),
-                               median_bias = median( dfs_out_j[[ out_j ]]$bias ),
-                               nsim = dim( dfs_out_j[[ out_j ]] )[1], 
-                               methods_included_parsed[ out_j, "time_elapsed" ],
-                               modelno = model_i, 
-                               method_name = out_model_i[[ out_j ]]@method_name);
+                                     median_bias = median( dfs_out_j[[ out_j ]]$bias ),
+                                     nsim = dim( dfs_out_j[[ out_j ]] )[1], 
+                                     methods_included_parsed[ out_j, "time_elapsed" ],
+                                     modelno = model_i, 
+                                     method_name = out_model_i[[ out_j ]]@method_name);
     
     #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
     if( batch_no %in% 1:2 ){
@@ -329,8 +302,11 @@ for( model_i in 1 ){
   cat("Success! \nElapsed time: \n\n"); print( proc.time() - ptm );
   
   dfs_out_all <- do.call( rbind, dfs_out_j )
+  metrics_all_output <- do.call( rbind, metrics_by_out_j )
+  metrics_all_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output,
+                                           model( simulation )[[ model_i ]]@params[-index_exclude]) 
   #' Write output files to .csv?
-  if( write_outputfiles ){
+  if( .write_outputfiles ){
     outputfile_name <- outputfile_names[ model_i ]
     if(!file.exists( outputfile_name )){
       cat(paste0("\nNOTE: Output file: ", outputfile_name, " does not exist. \nCreating output file and saving...\n\n"))
@@ -342,16 +318,11 @@ for( model_i in 1 ){
     }
   }
 
-  cat(paste0("[ model ", model_i, " ][------|  ] Combining metrics with simulation conditions...\n\n"))
-  metrics_all_output <- do.call( rbind, metrics_by_out_j )
-  if( round_results ){ #' note: disabling scientific notation
+  if( .round_results ){ #' note: disabling scientific notation
     variables_to_round <- c("power.pvalue", "power.rerand","power.ci", "coverage", "bias", "median_bias" )
     metrics_all_output[, variables_to_round ] <- 
-      format(round(as.numeric(metrics_all_output[, variables_to_round ]), digits_to_round_to ), scientific = FALSE)
+      format(round(as.numeric(metrics_all_output[, variables_to_round ]), .digits_to_round_to ), scientific = FALSE)
   }
-  metrics_all_with_id <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output,
-                                          model( simulation )[[ model_i ]]@params[-index_exclude]) 
-  cat("Success! \n\n")
   
   cat(paste0("[ model ", model_i, " ][--------|] Attempting to write metrics to: ", metricfile_name, "...\n")); ptm <- proc.time();
   if(!file.exists( metricfile_name )){
@@ -367,9 +338,9 @@ for( model_i in 1 ){
   if( batch_no %in% 1:2 ){
     cat(paste0("[ model ", model_i, " ][------|  ] Computing metrics, EXCLUDING cases with complete separation...\n\n"))
     metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
-    if( round_results ){ #' note: disabling scientific notation
+    if( .round_results ){ #' note: disabling scientific notation
       metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
-        format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
+        format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), .digits_to_round_to ), scientific = FALSE)
     }
     metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
                                                      model( simulation )[[ model_i ]]@params[-index_exclude]) 
@@ -386,35 +357,9 @@ for( model_i in 1 ){
     }
     cat(paste0("Success! \nElapsed time: \n")); print( proc.time() - ptm );
   }
-
-  #' Write progress table to .csv 
-  if( write_progressfile ){
-    cat(paste0("[ model ", model_i, " ][--------|] Attempting to write progress table to: ", progressfile_name, "...\n")); ptm <- proc.time();
-    #' Make table of all methods we want simulation output for.
-    methods_all_parsed <- cbind( methods_all, do.call("rbind", strsplit( methods_all, split = "_")), nsim = 0, time_elapsed = NA)
-    colnames( methods_all_parsed ) <- c( "method_name", "alloc_method", "analysis_method", "adjustment", "nsim", "time_elapsed")
-    
-    #' Get indices of methods with no output.
-    method_indices_not_incld <- which( !(methods_all_parsed[, "method_name"] %in% methods_included_parsed[, "method_name"]) )
-    progress_by_method_by_model <- cbind(rbind( methods_included_parsed, methods_all_parsed[ method_indices_not_incld, ]),
-                                         modelno = model_i, id_sim = id_sim )
-    if(!file.exists( progressfile_name )){
-      cat(paste0("\nNOTE: file: ", progressfile_name, " does not exist. \nCreating file and saving...\n\n"))
-      write.csv( progress_by_method_by_model, file = progressfile_name, row.names = FALSE )
-    }else{
-      cat(paste0("Appending progress to file ", progressfile_name, "...\n"))
-      write.table( progress_by_method_by_model, file = progressfile_name, sep = ",", append = TRUE, quote = FALSE,
-                   col.names = FALSE, row.names = FALSE)
-    }
-    #' Compare output methods to 'methods_all_parsed'
-    cat(paste0("Simulation [ ", model_i, " ] has these outputs:\n"))
-    print( methods_included_parsed );
-    cat(paste0("\n Simulation [ ", model_i, " ] is missing these outputs:\n"))
-    print( methods_all_parsed[ method_indices_not_incld, ] );
-  }
   
   #' Save output for each model (so it doesn't disappear in the loop!)
-  if( keep_output_in_environment ){
+  if( .keep_output_in_environment ){
     dfs_by_model[[ model_i ]] <- dfs_out_all;
     metrics_by_model[[ model_i ]] <- metrics_all_with_id;
     #' only save subsetted metrics if they exist!
@@ -425,7 +370,7 @@ for( model_i in 1 ){
   
   #' Deallocate memory in models after each loop.
   #' ref: https://www.r-bloggers.com/speed-trick-assigning-large-object-null-is-much-faster-than-using-rm/
-  if( remove_output_after_sourcing ){
+  if( .remove_output_after_sourcing ){
     dfs_out_j <- NULL;
     dfs_out_all <- NULL;
     metrics_by_out_j <- NULL;
@@ -438,14 +383,45 @@ for( model_i in 1 ){
   cat(paste0("Simulation model [ ", model_i, " ] processing complete. \nTotal time (secs):\n")); print( proc.time() - ptm.all ); cat("\n\n\n\n");
 }
 
-if( keep_output_in_environment ){
+if( .keep_output_in_environment ){
   cat("The following variables are stored in the environment:\n")
   cat("`dfs_by_model`              : list of data.frames of all results.\n")
   cat("`metrics_by_model`          : list of data.frames of all metrics.\n")
   cat("`metrics_by_model_subsetted`: list of data.frames of all metrics for subsetted simulations.\n")
 }
 
+plot_results <- FALSE
+if( plot_results ){
+  hibiscus <- as.data.table( dfs_by_model[[ 39 ]] )
+  hibiscus <- hibiscus[ method_name == "CAA-MI-2-PBA-0.70_RERAND_ADJ" ]
+  setkey( hibiscus, cilower, est )
+  require("plotrix")
+  with( hibiscus[order(est)], plotrix::plotCI( 1:5010, y = est, ui = ciupper, li = cilower, col = ifelse( coverage, "red", "blue") ))
+  
+}
 
+
+eval_metrics_by_hand <- FALSE
+if( eval_metrics_by_hand ){
+#' [ NEW 17 Aug 2018: evaluate metrics on each data frame in `dfs_by_model` ]
+methname <- "CR_REG_ADJ"
+mets <- vector( mode = "list", 10 )
+for( mod_i in seq_along( dfs_by_model[1:10] ) ){
+  foob <- dfs_by_model[[ mod_i ]][ dfs_by_model[[mod_i]]$method_name == methname, ]
+  indices_colMeans <- which( dimnames(foob)[[2]] %in% c("adjusted","rerandomized", "power.pvalue", 
+                                                                        "power.rerand","power.ci", "coverage", "bias"))
+  print(paste0("Model ", mod_i))
+  print( colMeans(foob[, indices_colMeans]) )
+  mets[[ mod_i ]] <- c(colMeans(foob[, indices_colMeans]),
+                       median_bias = median( foob$bias ),
+                       nsim = dim( foob )[1], 
+                       methods_included_parsed[ 6, "time_elapsed" ],
+                       modelno = mod_i, 
+                       method_name = unique( foob$method_name ));
+  rm("foob")
+}
+foob <- dfs_by_model[[1]]
+}
 
 #' If outcome is binary, then subset on indicator of non-separation (avoid convergence issues with GLM)
 process_subsetting_after_running <- FALSE
@@ -457,7 +433,7 @@ if( process_subsetting_after_running ){
   metrics_by_out_j_subsetted_validse <- vector( mode = "list", num_simulation_models )
   
   for( model_q in 1:num_simulation_models ){
-    dfs_out_j <- split( dfs_by_model[[1]], dfs_by_model[[1]]$method_name )
+    dfs_out_j <- split( dfs_by_model[[ model_q ]], dfs_by_model[[ model_q ]]$method_name )
     for( out_j in seq_along( dfs_out_j ) ){
       dfs_out_j_subsetted[[ out_j ]] <- dfs_out_j[[ out_j ]][ dfs_out_j[[ out_j ]]$glm_converged & !dfs_out_j[[ out_j ]]$separation_status, indices_colMeans ]
       metrics_by_out_j_subsetted_validse[[ out_j ]] <- c(colMeans(dfs_out_j_subsetted[[ out_j ]]), 
@@ -468,9 +444,9 @@ if( process_subsetting_after_running ){
                                                    method_name = names( dfs_out_j )[i]);
     } # end for( methods i )
     metrics_all_output_validse <- do.call( rbind, metrics_by_out_j_subsetted_validse )
-    if( round_results ){ #' note: disabling scientific notation
+    if( .round_results ){ #' note: disabling scientific notation
       metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")] <- 
-        format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), digits_to_round_to ), scientific = FALSE)
+        format(round(as.numeric(metrics_all_output_validse[, c("power.pvalue", "power.rerand","power.ci", "coverage", "bias")]), .digits_to_round_to ), scientific = FALSE)
     }
     metrics_all_with_id_validse <- cbind.data.frame( alloc_method = methods_included_parsed[, "alloc_method"], metrics_all_output_validse,
                                                      model( simulation )[[ model_q ]]@params[-index_exclude]) 
