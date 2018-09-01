@@ -148,3 +148,199 @@ if( output_tex_files ){
 #              "b4_median_bias.tex", 
               "b4_power.tex"))
 }
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Results (data) visualizations ] 
+#' -------------------------------------------------------------------------- #
+
+library('ggplot2')
+library('reshape2')
+library('plyr')
+
+#' [ gimme_ggplot() NOTE: does not work! issues with defining .variable.name and .value.name. ]
+gimme_ggplot <- function( result_tbl, 
+                          .value.name = 'Coverage probability',
+                          .variable.name = 'Allocation method',
+                          .id.vars = c("n", "Pr( Y )", "Pr( X )",  "bZ",  "bX"),
+                          .adjusted = TRUE )
+  {
+  grep_string <- ifelse( .adjusted, "adj$", "un$" );
+  result_tbl %>%
+    melt( value.name = .value.name, variable.name = .variable.name, na.rm = TRUE,
+          id.vars = .id.vars,
+          measure.vars = grep( grep_string, names( b1_coverage ), value = TRUE )) %>%
+    ggplot(aes(x = bZ, y = eval(.value.name), col = eval(.variable.name) )) +
+    geom_line() + geom_point() + 
+    facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context )
+}
+
+
+setwd("/Users/Moschops/Documents/MSThesis/adaptive-allocation/figures")
+
+#' [ Batch 1 plots ]
+b1_coverage %>%
+  melt( value.name = "Coverage", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b1_coverage ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Coverage, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context )
+
+# Coverage looks good -- exclude CAA_rerand_adj and rerun.
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 1 plots ] 
+#' -------------------------------------------------------------------------- #
+b1_coverage %>%
+  melt( value.name = "Coverage", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b1_coverage ), value = TRUE)) %>%
+  subset( allocation_method != "CAA_rerand_adj" ) %>%
+  ggplot(aes(x = bZ, y = Coverage, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, binary predictors: Coverage probability") + 
+  ggsave("b1_coverage.png", width = 30, height = 25, units = "cm")
+
+
+b1_medbias %>%
+  melt( value.name = "Median_bias", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b1_medbias ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Median_bias, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX  ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, binary predictors: Median bias") + 
+  ggsave("b1_medbias.png", width = 30, height = 25, units = "cm")
+
+b1_power %>%
+  melt( value.name = "Power", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b1_power ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Power, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX  ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, binary predictors: Power") + 
+  ggsave("b1_power.png", width = 30, height = 25, units = "cm")
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 2 plots ] 
+#' -------------------------------------------------------------------------- #
+b2_coverage %>%
+  melt( value.name = "Coverage", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b2_coverage ), value = TRUE)) %>%
+  subset( allocation_method != "CAA_rerand_adj" ) %>%
+  ggplot(aes(x = bZ, y = Coverage, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, continuous predictors: Coverage probability") + 
+  ggsave("b2_coverage.png", width = 30, height = 25, units = "cm")
+
+
+b2_medbias %>%
+  melt( value.name = "Median_bias", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b2_medbias ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Median_bias, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX  ~ `Pr( Y )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, continuous predictors: Median bias") + 
+  ggsave("b2_medbias.png", width = 30, height = 25, units = "cm")
+
+b2_power %>%
+  melt( value.name = "Power", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( Y )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b2_power ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Power, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX  ~ `Pr( Y )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, continuous predictors: Power") + 
+  ggsave("b2_power.png", width = 30, height = 25, units = "cm")
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 3 plots ] 
+#' -------------------------------------------------------------------------- #
+b3_coverage %>%
+  melt( value.name = "Coverage", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b3_coverage ), value = TRUE)) %>%
+  subset( allocation_method != "CAA_rerand_adj" ) %>%
+  ggplot(aes(x = bZ, y = Coverage, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Continuous outcome, binary predictors: Coverage probability") + 
+  ggsave("b3_coverage.png", width = 30, height = 25, units = "cm")
+
+
+b3_medbias %>%
+  melt( value.name = "Median_bias", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b3_medbias ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Median_bias, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX  ~ `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Continuous outcome, binary predictors: Median bias") + 
+  ggsave("b3_medbias.png", width = 30, height = 25, units = "cm")
+
+b3_power %>%
+  melt( value.name = "Power", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "Pr( X )",  "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b3_power ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Power, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX  ~ `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Continuous outcome, binary predictors: Power") + 
+  ggsave("b3_power.png", width = 30, height = 25, units = "cm")
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 4 plots ] 
+#' -------------------------------------------------------------------------- #
+b4_coverage %>%
+  melt( value.name = "Coverage", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b4_coverage ), value = TRUE)) %>%
+  subset( allocation_method != "CAA_rerand_adj" ) %>%
+  ggplot(aes(x = bZ, y = Coverage, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Continuous outcome, continuous predictors: Coverage probability") + 
+  ggsave("b4_coverage.png", width = 30, height = 25, units = "cm")
+
+
+# b4_medbias %>%
+#   melt( value.name = "Median_bias", variable.name = "allocation_method", na.rm = TRUE,
+#         id.vars = c("n", "bZ", "bX"),
+#         measure.vars = grep("adj$", names( b4_medbias ), value = TRUE)) %>%
+#   ggplot(aes(x = bZ, y = Median_bias, col = allocation_method)) +
+#   geom_line() +
+#   geom_point() + 
+#   facet_grid( n ~ bX, labeller = label_context ) + 
+#   ggtitle("Continuous outcome, continuous predictors: Median bias") + 
+#   ggsave("b4_medbias.png", width = 30, height = 25, units = "cm")
+
+b4_power %>%
+  melt( value.name = "Power", variable.name = "allocation_method", na.rm = TRUE,
+        id.vars = c("n", "bZ",  "bX"),
+        measure.vars = grep("adj$", names( b4_power ), value = TRUE)) %>%
+  ggplot(aes(x = bZ, y = Power, col = allocation_method)) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n ~ bX, labeller = label_context ) + 
+  ggtitle("Continuous outcome, continuous predictors: Power") + 
+  ggsave("b4_power.png", width = 30, height = 25, units = "cm")
+
