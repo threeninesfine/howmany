@@ -109,9 +109,9 @@ print( b3k_medbias <- make_kable( b3_medbias, model_params = b3_mod_params, tbl_
 print( b3k_power <- make_kable( b3_power, model_params = b3_mod_params, tbl_caption = "Batch 3 (Continuous Y, Binary X): Power" ) )
 
 #' [ Batch 4: Continuous Y, continuous X ]
-print( b4k_cov <- make_kable( b4_coverage, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Coverage probability" ) )
-# print( b4k_medbias <- make_kable( b4_medbias, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Median bias" ) )
-print( b4k_power <- make_kable( b4_power, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Binary X): Power" ) )
+print( b4k_cov <- make_kable( b4_coverage, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Continuous X): Coverage probability" ) )
+print( b4k_medbias <- make_kable( b4_medbias, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Continuous X): Median bias" ) )
+print( b4k_power <- make_kable( b4_power, model_params = b4_mod_params, tbl_caption = "Batch 4 (Continuous Y, Continuous X): Power" ) )
 
 
 
@@ -142,10 +142,10 @@ if( output_tex_files ){
          list("b3_coverage.tex", "b3_median_bias.tex", "b3_power.tex"))
   
   mapply(sink_tbl, list(b4k_cov, 
-#                        b4k_medbias, 
+                        b4k_medbias, 
                         b4k_power), 
          list("b4_coverage.tex", 
-#              "b4_median_bias.tex", 
+              "b4_median_bias.tex", 
               "b4_power.tex"))
 }
 
@@ -157,25 +157,702 @@ library('ggplot2')
 library('reshape2')
 library('plyr')
 
-#' [ gimme_ggplot() NOTE: does not work! issues with defining .variable.name and .value.name. ]
-gimme_ggplot <- function( result_tbl, 
-                          .value.name = 'Coverage probability',
-                          .variable.name = 'Allocation method',
-                          .id.vars = c("n", "Pr( Y )", "Pr( X )",  "bZ",  "bX"),
-                          .adjusted = TRUE )
-  {
-  grep_string <- ifelse( .adjusted, "adj$", "un$" );
-  result_tbl %>%
-    melt( value.name = .value.name, variable.name = .variable.name, na.rm = TRUE,
-          id.vars = .id.vars,
-          measure.vars = grep( grep_string, names( b1_coverage ), value = TRUE )) %>%
-    ggplot(aes(x = bZ, y = eval(.value.name), col = eval(.variable.name) )) +
-    geom_line() + geom_point() + 
-    facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context )
+setwd("/Users/Moschops/Documents/MSThesis/adaptive-allocation/figures")
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Adjusted / unadjusted plots ] 
+#' -------------------------------------------------------------------------- #
+b1_id_vars <- c( "n", "Pr( Y )", "Pr( X )", "bZ", "bX" )
+b2_id_vars <- c( "n", "Pr( Y )", "bZ", "bX" )
+b3_id_vars <- c( "n", "Pr( X )", "bZ", "bX" )
+b4_id_vars <- c( "n", "bZ", "bX" )
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 1 ] 
+#' -------------------------------------------------------------------------- #
+b1_coverage$metric <- 'coverage'
+b1_medbias$metric <- 'median_bias'
+b1_power$metric <- 'power'
+b1 <- data.table(do.call( rbind, list( b1_coverage, b1_medbias, b1_power )))
+b1_long <- melt( b1, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b1_id_vars, 'metric'), 
+                 measure.vars = grep('adj$|un$', names( b1_coverage ), value = TRUE))
+
+b1_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+b1_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+b1_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+b1_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+#' [ Single metric, all methods & adjustment: adj, unadj ]
+for( .metric in unique( b1_long$metric ) ){
+  if( .metric == "coverage" ){
+    b1_long %>%
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b1_long %>%
+      subset( metric == .metric ) %>% 
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ single metric, all methods, adjusted estimates only. ]
+for( .metric in unique( b1_long$metric ) ){
+  if( .metric == "coverage" ){
+    b1_long %>%
+      subset( adjustment ==  'adjusted' ) %>% 
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric, ", adjusted estimates")) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b1_long %>%
+      subset( metric == .metric & adjustment ==  'adjusted' ) %>% 
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric, ", adjusted estimates")) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, by single allocation type ]
+for( .metric in unique( b1_long$metric ) ){
+  for( .alloc_type in unique( b1_long$alloc_type ) ){
+    b1_long %>%
+      subset( metric == .metric & alloc_type == .alloc_type ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_", .metric,"_", .alloc_type, "_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, comparing `allocation type` CR vs. CAA ]
+for( .metric in unique( b1_long$metric ) ){
+    b1_long %>%
+      subset( metric == .metric & alloc_type %in% c("CR", "CAA") ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_", .metric,"_CR_to_CAA_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
 }
 
 
-setwd("/Users/Moschops/Documents/MSThesis/adaptive-allocation/figures")
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 1 subset ] 
+#' -------------------------------------------------------------------------- #
+b1_sub_coverage$metric <- 'coverage'
+b1_sub_medbias$metric <- 'median_bias'
+b1_sub_power$metric <- 'power'
+b1_sub <- data.table(do.call( rbind, list( b1_sub_coverage, b1_sub_medbias, b1_sub_power )))
+b1_sub_long <- melt( b1_sub, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b1_id_vars, 'metric', 'avg_nsim'), 
+                 measure.vars = grep('adj$|un$', names( b1_sub_coverage ), value = TRUE))
+
+b1_sub_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+b1_sub_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+b1_sub_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+b1_sub_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+#' [ Single metric, all methods & adjustment: adj, unadj ]
+for( .metric in unique( b1_sub_long$metric ) ){
+  if( .metric == "coverage" ){
+    b1_sub_long %>%
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_sub_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b1_sub_long %>%
+      subset( metric == .metric ) %>% 
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_sub_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ single metric, all methods, adjusted estimates only. ]
+for( .metric in unique( b1_sub_long$metric ) ){
+  if( .metric == "coverage" ){
+    b1_sub_long %>%
+      subset( rerandomized == 'model' & metric == .metric & adjustment == 'adjusted' ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors (subset): ", .metric, ", adjusted estimates")) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_sub_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b1_sub_long %>%
+      subset( metric == .metric & adjustment == 'adjusted' ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_sub_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, by single allocation type ]
+for( .metric in unique( b1_sub_long$metric ) ){
+  for( .alloc_type in unique( b1_sub_long$alloc_type ) ){
+    b1_sub_long %>%
+      subset( metric == .metric & alloc_type == .alloc_type ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b1_sub_", .metric,"_", .alloc_type, "_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, comparing `allocation type` CR vs. CAA ]
+for( .metric in unique( b1_sub_long$metric ) ){
+  b1_sub_long %>%
+    subset( metric == .metric & alloc_type %in% c("CR", "CAA") ) %>%
+    ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+    geom_line() +
+    geom_point() + 
+    facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+    ylab( .metric ) + 
+    ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
+    theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+    ggsave(paste0("b1_sub_", .metric,"_CR_to_CAA_adj_unadj.png"), 
+           width = 30, height = 25, units = "cm")
+}
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 2 adjusted/unadjusted plots ] 
+#' -------------------------------------------------------------------------- #
+b2_coverage$metric <- 'coverage'
+b2_medbias$metric <- 'median_bias'
+b2_power$metric <- 'power'
+b2 <- data.table(do.call( rbind, list( b2_coverage, b2_medbias, b2_power )))
+b2_long <- melt( b2, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b2_id_vars, 'metric'), 
+                 measure.vars = grep('adj$|un$', names( b2_coverage ), value = TRUE))
+
+b2_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+b2_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+b2_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+b2_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+#' [ Single metric, all methods & adjustment: adj, unadj ]
+for( .metric in unique( b2_long$metric ) ){
+  if( .metric == "coverage" ){
+    b2_long %>%
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b2_long %>%
+      subset( metric == .metric ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ single metric, all methods, adjusted estimates only. ]
+for( .metric in unique( b2_long$metric ) ){
+  if( .metric == "coverage" ){
+    b2_long %>%
+      subset( rerandomized == 'model' & metric == .metric & adjustment == 'adjusted' ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b2_long %>%
+      subset( metric == .metric & adjustment == 'adjusted' ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, by single allocation type ]
+for( .metric in unique( b2_long$metric ) ){
+  for( .alloc_type in unique( b2_long$alloc_type ) ){
+    b2_long %>%
+      subset( metric == .metric & alloc_type == .alloc_type ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_", .metric,"_", .alloc_type, "_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, comparing `allocation type` CR vs. CAA ]
+for( .metric in unique( b2_long$metric ) ){
+  b2_long %>%
+    subset( metric == .metric & alloc_type %in% c("CR", "CAA") ) %>%
+    ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+    geom_line() +
+    geom_point() + 
+    facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+    ylab( .metric ) + 
+    ggtitle(paste0("Binary outcome, continuous predictors: ", .metric)) + 
+    theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+    ggsave(paste0("b2_", .metric,"_CR_to_CAA_adj_unadj.png"), 
+           width = 30, height = 25, units = "cm")
+}
+
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 2 subset ] 
+#' -------------------------------------------------------------------------- #
+b2_sub_coverage$metric <- 'coverage'
+b2_sub_medbias$metric <- 'median_bias'
+b2_sub_power$metric <- 'power'
+b2_sub <- data.table(do.call( rbind, list( b2_sub_coverage, b2_sub_medbias, b2_sub_power )))
+b2_sub_long <- melt( b2_sub, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b2_id_vars, 'metric', 'avg_nsim'), 
+                     measure.vars = grep('adj$|un$', names( b2_sub_coverage ), value = TRUE))
+
+b2_sub_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+b2_sub_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+b2_sub_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                                     function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+b2_sub_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+#' [ Single metric, all methods & adjustment: adj, unadj ]
+for( .metric in unique( b2_long$metric ) ){
+  if( .metric == "coverage" ){
+    b2_sub_long %>%
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_sub_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b2_sub_long %>%
+      subset( metric == .metric ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_sub_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ single metric, all methods, adjusted estimates only. ]
+for( .metric in unique( b2_sub_long$metric ) ){
+  if( .metric == "coverage" ){
+    b2_sub_long %>%
+      subset( rerandomized == 'model' & metric == .metric & adjustment == 'adjusted' ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_sub_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b2_sub_long %>%
+      subset( metric == .metric & adjustment == 'adjusted' ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_sub_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, by single allocation type ]
+for( .metric in unique( b2_sub_long$metric ) ){
+  for( .alloc_type in unique( b2_sub_long$alloc_type ) ){
+    b2_sub_long %>%
+      subset( metric == .metric & alloc_type == .alloc_type ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Binary outcome, continuous predictors (subset): ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b2_sub_", .metric,"_", .alloc_type, "_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, comparing `allocation type` CR vs. CAA ]
+for( .metric in unique( b2_sub_long$metric ) ){
+  b2_sub_long %>%
+    subset( metric == .metric & alloc_type %in% c("CR", "CAA") ) %>%
+    ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+    geom_line() +
+    geom_point() + 
+    facet_grid( n + bX ~ `Pr( Y )`, labeller = label_context ) + 
+    ylab( .metric ) + 
+    ggtitle(paste0("Binary outcome, continuous predictors (subset): ", .metric)) + 
+    theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+    ggsave(paste0("b2_sub_", .metric,"_CR_to_CAA_adj_unadj.png"), 
+           width = 30, height = 25, units = "cm")
+}
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 3 adjusted/unadjusted plots ] 
+#' -------------------------------------------------------------------------- #
+b3_coverage$metric <- 'coverage'
+b3_medbias$metric <- 'median_bias'
+b3_power$metric <- 'power'
+b3 <- data.table(do.call( rbind, list( b3_coverage, b3_medbias, b3_power )))
+b3_long <- melt( b3, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b3_id_vars, 'metric'), 
+                 measure.vars = grep('adj$|un$', names( b3_coverage ), value = TRUE))
+
+b3_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+b3_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+b3_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+b3_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+#' [ Single metric, all methods & adjustment: adj, unadj ]
+for( .metric in unique( b3_long$metric ) ){
+  if( .metric == "coverage" ){
+    b3_long %>%
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b3_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b3_long %>%
+      subset( metric == .metric ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b3_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ single metric, all methods, adjusted estimates only. ]
+for( .metric in unique( b3_long$metric ) ){
+  if( .metric == "coverage" ){
+    b3_long %>%
+      subset( rerandomized == 'model' & metric == .metric & adjustment == 'adjusted' ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b3_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b3_long %>%
+      subset( metric == .metric & adjustment == 'adjusted' ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b3_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, by single allocation type ]
+for( .metric in unique( b3_long$metric ) ){
+  for( .alloc_type in unique( b3_long$alloc_type ) ){
+    b3_long %>%
+      subset( metric == .metric & alloc_type == .alloc_type ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b3_", .metric,"_", .alloc_type, "_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, comparing `allocation type` CR vs. CAA ]
+for( .metric in unique( b3_long$metric ) ){
+  b3_long %>%
+    subset( metric == .metric & alloc_type %in% c("CR", "CAA") ) %>%
+    ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+    geom_line() +
+    geom_point() + 
+    facet_grid( n + bX ~ `Pr( X )`, labeller = label_context ) + 
+    ylab( .metric ) + 
+    ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+    theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+    ggsave(paste0("b3_", .metric,"_CR_to_CAA_adj_unadj.png"), 
+           width = 30, height = 25, units = "cm")
+}
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Batch 4 adjusted/unadjusted plots ] 
+#' -------------------------------------------------------------------------- #
+b4_coverage$metric <- 'coverage'
+b4_medbias$metric <- 'median_bias'
+b4_power$metric <- 'power'
+b4 <- data.table(do.call( rbind, list( b4_coverage, b4_medbias, b4_power )))
+b4_long <- melt( b4, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b4_id_vars, 'metric'), 
+                 measure.vars = grep('adj$|un$', names( b4_coverage ), value = TRUE))
+
+b4_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+b4_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+b4_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+b4_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+#' [ Single metric, all methods & adjustment: adj, unadj ]
+for( .metric in unique( b4_long$metric ) ){
+  if( .metric == "coverage" ){
+    b4_long %>%
+      subset( rerandomized == 'model' & metric == .metric ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n ~ bX, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b4_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b4_long %>%
+      subset( metric == .metric ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n ~ bX, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b4_", .metric,"_all_methods_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ single metric, all methods, adjusted estimates only. ]
+for( .metric in unique( b4_long$metric ) ){
+  if( .metric == "coverage" ){
+    b4_long %>%
+      subset( rerandomized == 'model' & metric == .metric & adjustment == 'adjusted' ) %>%  #' [ exclude rerandomization-based CIs from coverage calcs]
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n ~ bX, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b4_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }else{
+    b4_long %>%
+      subset( metric == .metric & adjustment == 'adjusted' ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n ~ bX, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b4_", .metric,"_all_methods_adj_only.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, by single allocation type ]
+for( .metric in unique( b4_long$metric ) ){
+  for( .alloc_type in unique( b4_long$alloc_type ) ){
+    b4_long %>%
+      subset( metric == .metric & alloc_type == .alloc_type ) %>%
+      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+      geom_line() +
+      geom_point() + 
+      facet_grid( n ~ bX, labeller = label_context ) + 
+      ylab( .metric ) + 
+      ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+      ggsave(paste0("b4_", .metric,"_", .alloc_type, "_adj_unadj.png"), 
+             width = 30, height = 25, units = "cm")
+  }
+}
+
+#' [ Single metric, comparing `allocation type` CR vs. CAA ]
+for( .metric in unique( b4_long$metric ) ){
+  b4_long %>%
+    subset( metric == .metric & alloc_type %in% c("CR", "CAA") ) %>%
+    ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
+    geom_line() +
+    geom_point() + 
+    facet_grid( n ~ bX, labeller = label_context ) + 
+    ylab( .metric ) + 
+    ggtitle(paste0("Continuous outcome, binary predictors: ", .metric)) + 
+    theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+    ggsave(paste0("b4_", .metric,"_CR_to_CAA_adj_unadj.png"), 
+           width = 30, height = 25, units = "cm")
+}
+
+
+#' -------------------------------------------------------------------------- #
+#'                      [ Older plots ] 
+#' -------------------------------------------------------------------------- #
+#' [ melt each data.table by `allocation_method` ]
+m1 <- melt( b1_coverage, value.name = 'Coverage', variable.name = 'allocation_method', na.rm = TRUE,
+            id.vars = b1_id_vars, measure.vars = grep('adj$|un$', names( b1_coverage ), value = TRUE))
+m1[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+m1[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+m1[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                            function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+m1[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+b1_medbias <- data.table( b1_medbias )
+m2 <- melt( b1_medbias, value.name = 'Coverage', variable.name = 'allocation_method', na.rm = TRUE,
+            id.vars = b1_id_vars, measure.vars = grep('adj$|un$', names( b1_coverage ), value = TRUE))
+m2[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
+m2[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
+m2[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
+                            function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
+m2[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
+
+
+m1 %>% 
+  subset( rerandomized == 'model' ) %>%
+  ggplot(aes( x = bZ, y = Coverage, col = alloc_method, linetype = adjustment )) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, binary predictors: Coverage") + 
+  theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+  ggsave("b1_coverage_adjustment_all.png", width = 30, height = 25, units = "cm")
+
+m1 %>% 
+  subset( rerandomized == 'model' & alloc_method == 'CR_model' ) %>%
+  ggplot(aes( x = bZ, y = Coverage, col = alloc_method, linetype = adjustment )) +
+  geom_line() +
+  geom_point() + 
+  facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
+  ggtitle("Binary outcome, binary predictors: Power") + 
+  theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
+  ggsave("b1_coverage_adjustment_all.png", width = 30, height = 25, units = "cm")
 
 #' [ Batch 1 plots ]
 b1_coverage %>%
@@ -343,152 +1020,7 @@ b4_power %>%
   facet_grid( n ~ bX, labeller = label_context ) + 
   ggtitle("Continuous outcome, continuous predictors: Power") + 
   theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold'))
- # ggsave("b4_power.png", width = 30, height = 25, units = "cm")
+# ggsave("b4_power.png", width = 30, height = 25, units = "cm")
 
-
-
-#' -------------------------------------------------------------------------- #
-#'                      [ Adjusted / unadjusted plots ] 
-#' -------------------------------------------------------------------------- #
-b1_id_vars <- c( "n", "Pr( Y )", "Pr( X )", "bZ", "bX" )
-b2_id_vars <- 
-
-dt1_cov <- as.data.table( b1_coverage )
-
-#' [ melt each data.table by `allocation_method` ]
-m1 <- melt( b1_coverage, value.name = 'Coverage', variable.name = 'allocation_method', na.rm = TRUE,
-            id.vars = b1_id_vars, measure.vars = grep('adj$|un$', names( b1_coverage ), value = TRUE))
-m1[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
-m1[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
-m1[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
-                            function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
-m1[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
-
-b1_medbias <- data.table( b1_medbias )
-m2 <- melt( b1_medbias, value.name = 'Coverage', variable.name = 'allocation_method', na.rm = TRUE,
-            id.vars = b1_id_vars, measure.vars = grep('adj$|un$', names( b1_coverage ), value = TRUE))
-m2[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
-m2[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
-m2[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
-                            function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
-m2[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
-
-
-m1 %>% 
-  subset( rerandomized == 'model' ) %>%
-  ggplot(aes( x = bZ, y = Coverage, col = alloc_method, linetype = adjustment )) +
-  geom_line() +
-  geom_point() + 
-  facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
-  ggtitle("Binary outcome, binary predictors: Coverage") + 
-  theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
-  ggsave("b1_coverage_adjustment_all.png", width = 30, height = 25, units = "cm")
-
-m1 %>% 
-  subset( rerandomized == 'model' & alloc_method == 'CR_model' ) %>%
-  ggplot(aes( x = bZ, y = Coverage, col = alloc_method, linetype = adjustment )) +
-  geom_line() +
-  geom_point() + 
-  facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
-  ggtitle("Binary outcome, binary predictors: Power") + 
-  theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
-  ggsave("b1_coverage_adjustment_all.png", width = 30, height = 25, units = "cm")
-
-
-#' -------------------------------------------------------------------------- #
-#'                      [ Batch 1 ] 
-#' -------------------------------------------------------------------------- #
-b1_coverage$metric <- 'coverage'
-b1_medbias$metric <- 'median_bias'
-b1_power$metric <- 'power'
-b1 <- data.table(do.call( rbind, list( b1_coverage, b1_medbias, b1_power )))
-b1_long <- melt( b1, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b1_id_vars, 'metric'), 
-                 measure.vars = grep('adj$|un$', names( b1_coverage ), value = TRUE))
-
-b1_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
-b1_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
-b1_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
-                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
-b1_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
-
-for( .metric in unique( b1_long$metric ) ){
-  for( .alloc_type in unique( b1_long$alloc_type ) ){
-    b1_long %>%
-      subset( metric == .metric & alloc_type == .alloc_type ) %>%
-      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
-      geom_line() +
-      geom_point() + 
-      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
-      ylab( .metric ) + 
-      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
-      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
-      ggsave(paste0("b1_", .metric,"_", .alloc_type, "_adjustment_all.png"), 
-             width = 30, height = 25, units = "cm")
-  }
-}
-
-#' -------------------------------------------------------------------------- #
-#'                      [ Batch 1 subset ] 
-#' -------------------------------------------------------------------------- #
-b1_sub_coverage$metric <- 'coverage'
-b1_sub_medbias$metric <- 'median_bias'
-b1_sub_power$metric <- 'power'
-b1_sub <- data.table(do.call( rbind, list( b1_sub_coverage, b1_sub_medbias, b1_sub_power )))
-b1_sub_long <- melt( b1, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b1_id_vars, 'metric', 'avg_nsim'), 
-                 measure.vars = grep('adj$|un$', names( b1_sub_coverage ), value = TRUE))
-
-b1_sub_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
-b1_sub_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
-b1_sub_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
-                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
-b1_sub_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
-
-for( .metric in unique( b1_sub_long$metric ) ){
-  for( .alloc_type in unique( b1_sub_long$alloc_type ) ){
-    b1_sub_long %>%
-      subset( metric == .metric & alloc_type == .alloc_type ) %>%
-      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
-      geom_line() +
-      geom_point() + 
-      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
-      ylab( .metric ) + 
-      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
-      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
-      ggsave(paste0("b1_sub_", .metric,"_", .alloc_type, "_adjustment_all.png"), 
-             width = 30, height = 25, units = "cm")
-  }
-}
-
-
-
-#' [ Batch 2 ]
-b2_coverage$metric <- 'coverage'
-b2_medbias$metric <- 'median_bias'
-b2_power$metric <- 'power'
-b1 <- data.table(do.call( rbind, list( b2_coverage, b2_medbias, b2_power )))
-b2_long <- melt( b1, variable.name = 'allocation_method', na.rm = TRUE, id.vars = c(b2_id_vars, 'metric'), 
-                 measure.vars = grep('adj$|un$', names( b2_coverage ), value = TRUE))
-
-b2_long[, adjustment := ifelse(grepl( 'adj$', allocation_method ), 'adjusted', 'unadjusted') ]
-b2_long[, alloc_type := sapply(strsplit(as.character( allocation_method ), split = "_" ), function(.x){.x[1]}) ] 
-b2_long[, rerandomized := sapply(strsplit(as.character( allocation_method ), split = "_" ), 
-                                 function(.x){ifelse( .x[2] == 'rerand', 'rerand', 'model')}) ]
-b2_long[, alloc_method := paste( alloc_type, rerandomized, sep = "_" ) ]
-
-for( .metric in unique( b2_long$metric ) ){
-  for( .alloc_type in unique( b2_long$alloc_type ) ){
-    b2_long %>%
-      subset( metric == .metric & alloc_type == .alloc_type ) %>%
-      ggplot(aes( x = bZ, y = value, col = alloc_method, linetype = adjustment )) +
-      geom_line() +
-      geom_point() + 
-      facet_grid( n + bX ~ `Pr( Y )` + `Pr( X )`, labeller = label_context ) + 
-      ylab( .metric ) + 
-      ggtitle(paste0("Binary outcome, binary predictors: ", .metric)) + 
-      theme( plot.title = element_text( hjust = 1, vjust = 0.5, face = 'bold')) +
-      ggsave(paste0("b2_", .metric,"_", .alloc_type, "_adjustment_all.png"), 
-             width = 30, height = 25, units = "cm")
-  }
-}
 
 
